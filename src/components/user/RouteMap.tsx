@@ -12,7 +12,10 @@ declare global {
 
 interface RouteMapProps {
     route: Route;
-    stops: { stops: Stop }[];
+    stops: {
+        stops: Stop;
+        path_coordinates?: { lat: number; lng: number }[];
+    }[];
 }
 
 export default function RouteMap({ route, stops }: RouteMapProps) {
@@ -23,11 +26,8 @@ export default function RouteMap({ route, stops }: RouteMapProps) {
 
     useEffect(() => {
         if (!mapRef.current || !window.google || stops.length === 0) {
-            console.log('[RouteMap] Not ready:', { hasMapRef: !!mapRef.current, hasGoogle: !!window.google, stopsLength: stops.length });
             return;
         }
-
-        console.log('[RouteMap] Processing stops:', stops);
 
         // Clear existing markers and polyline
         markersRef.current.forEach(marker => marker.setMap(null));
@@ -36,59 +36,45 @@ export default function RouteMap({ route, stops }: RouteMapProps) {
             polylineRef.current.setMap(null);
         }
 
-        // Extract coordinates from stops - handle multiple PostGIS formats
-        const coordinates: google.maps.LatLngLiteral[] = stops
-            .map((rs, index) => {
-                const stop = rs.stops;
-                console.log(`[RouteMap] Stop ${index}:`, stop.stop_name, 'location:', stop.location);
+        // Extract all coordinates including waypoints
+        const allPathCoordinates: google.maps.LatLngLiteral[] = [];
 
-                // Try different PostGIS formats
-                let lat: number | null = null;
-                let lng: number | null = null;
+        stops.forEach((rs, index) => {
+            const stop = rs.stops;
+            let lat: number | null = null;
+            let lng: number | null = null;
 
-                if (stop.location) {
-                    const loc = stop.location as any;
-
-                    // Format 1: GeoJSON-like { type: "Point", coordinates: [lng, lat] }
-                    if (loc.coordinates && Array.isArray(loc.coordinates)) {
-                        lng = loc.coordinates[0];
-                        lat = loc.coordinates[1];
-                    }
-                    // Format 2: Direct WKT parsing (not expected but handle just in case)
-                    else if (typeof loc === 'string') {
-                        // Parse "POINT(lng lat)" format
-                        const match = loc.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-                        if (match) {
-                            lng = parseFloat(match[1]);
-                            lat = parseFloat(match[2]);
-                        }
-                    }
+            if (stop.location) {
+                const loc = stop.location as any;
+                if (loc.coordinates && Array.isArray(loc.coordinates)) {
+                    lng = loc.coordinates[0];
+                    lat = loc.coordinates[1];
                 }
+            }
 
-                console.log(`[RouteMap] Extracted coordinates:`, { lat, lng });
+            if (lat !== null && lng !== null) {
+                // Add current stop coordinate
+                allPathCoordinates.push({ lat, lng });
 
-                if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
-                    return { lat, lng };
+                // Add path coordinates (waypoints) to next stop if they exist
+                if (rs.path_coordinates && Array.isArray(rs.path_coordinates)) {
+                    allPathCoordinates.push(...rs.path_coordinates);
                 }
-                return null;
-            })
-            .filter((coord): coord is google.maps.LatLngLiteral => coord !== null);
+            }
+        });
 
-        console.log('[RouteMap] Valid coordinates:', coordinates);
-
-        if (coordinates.length === 0) {
-            console.warn('[RouteMap] No valid coordinates found!');
+        if (allPathCoordinates.length === 0) {
             return;
         }
 
         // Calculate bounds
         const bounds = new google.maps.LatLngBounds();
-        coordinates.forEach(coord => bounds.extend(coord));
+        allPathCoordinates.forEach(coord => bounds.extend(coord));
 
         // Create or update map
         if (!mapInstanceRef.current) {
             const map = new google.maps.Map(mapRef.current, {
-                center: coordinates[0],
+                center: allPathCoordinates[0],
                 zoom: 13,
                 mapTypeControl: false,
                 streetViewControl: false,
@@ -96,7 +82,7 @@ export default function RouteMap({ route, stops }: RouteMapProps) {
             mapInstanceRef.current = map;
         }
 
-        // Fit bounds to show all stops
+        // Fit bounds to show all stops and path
         mapInstanceRef.current.fitBounds(bounds);
 
         // Create markers for each stop
@@ -145,14 +131,19 @@ export default function RouteMap({ route, stops }: RouteMapProps) {
             }
         });
 
-        // Create polyline to connect stops
+        // Create polyline to connect stops including waypoints
         const polyline = new google.maps.Polyline({
-            path: coordinates,
+            path: allPathCoordinates,
             geodesic: true,
             strokeColor: route.route_color,
             strokeOpacity: 0.8,
             strokeWeight: 4,
             map: mapInstanceRef.current,
+            icons: [{
+                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+                offset: '100%',
+                repeat: '100px'
+            }]
         });
 
         polylineRef.current = polyline;

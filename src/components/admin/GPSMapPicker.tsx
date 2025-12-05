@@ -17,6 +17,9 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect 
     const [locationStatus, setLocationStatus] = useState<string>('');
     const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
+    const inputRef = useRef<HTMLInputElement>(null);
+    const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
     // Default to Vientiane, Laos
     const defaultCenter = { lat: 17.9757, lng: 102.6331 };
 
@@ -89,6 +92,7 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect 
             zoom: initialLat && initialLng ? 14 : 12,
             mapTypeControl: false,
             streetViewControl: false,
+            fullscreenControl: false,
             zoomControl: true,
         });
 
@@ -145,12 +149,79 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect 
 
     }, [mapRef]); // Run once on mount
 
+    // Initialize Autocomplete
+    useEffect(() => {
+        if (map && inputRef.current && !autocompleteRef.current && window.google) {
+            const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+                fields: ["geometry", "name"],
+                types: ["establishment", "geocode"],
+            });
+            autocomplete.bindTo("bounds", map);
+
+            autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+
+                if (!place.geometry || !place.geometry.location) {
+                    // User entered the name of a Place that was not suggested and
+                    // pressed the Enter key, or the Place Details request failed.
+                    // window.alert("No details available for input: '" + place.name + "'");
+                    return;
+                }
+
+                // If the place has a geometry, then present it on a map.
+                if (place.geometry.viewport) {
+                    map.fitBounds(place.geometry.viewport);
+                } else {
+                    map.setCenter(place.geometry.location);
+                    map.setZoom(17);
+                }
+
+                // Update marker
+                if (markerRef.current) {
+                    markerRef.current.setMap(null);
+                }
+
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+
+                const newMarker = new google.maps.Marker({
+                    position: { lat, lng },
+                    map: map,
+                    draggable: true,
+                    title: place.name || '선택된 위치'
+                });
+                markerRef.current = newMarker;
+
+                // Add drag end listener to new marker
+                newMarker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+                    if (e.latLng) {
+                        onLocationSelect(e.latLng.lat(), e.latLng.lng());
+                    }
+                });
+
+                onLocationSelect(lat, lng);
+            });
+
+            autocompleteRef.current = autocomplete;
+        }
+    }, [map]);
+
     return (
-        <div className="w-full h-full min-h-[400px] relative">
+        <div className="w-full h-full min-h-[300px] md:min-h-[400px] relative">
+            {/* Search Input */}
+            <div className="absolute top-3 left-3 z-10 w-full max-w-xs md:max-w-sm">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    placeholder="장소 검색..."
+                    className="w-full px-4 py-2 rounded-lg shadow-md border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                />
+            </div>
+
             <div ref={mapRef} className="w-full h-full rounded-lg border border-slate-200" />
 
-            {/* Instructions */}
-            <div className="absolute top-3 left-3 bg-white px-3 py-2 rounded-lg shadow-md text-xs text-slate-600 flex items-center gap-2 border border-slate-200">
+            {/* Instructions - Moved to bottom left to avoid overlap with search */}
+            <div className="absolute bottom-3 left-3 bg-white px-3 py-2 rounded-lg shadow-md text-xs text-slate-600 flex items-center gap-2 border border-slate-200">
                 <MapPin size={14} className="text-blue-600" />
                 <span>지도를 클릭하여 위치를 선택하세요</span>
             </div>
@@ -159,7 +230,7 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect 
             <button
                 onClick={getCurrentLocation}
                 disabled={isLoadingLocation}
-                className="absolute bottom-24 right-3 bg-white p-3 rounded-lg shadow-lg hover:bg-slate-50 transition-colors border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="absolute top-2 right-2 bg-white p-3 rounded-lg shadow-lg hover:bg-slate-50 transition-colors border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed group z-10"
                 title="현재 위치로 이동"
             >
                 {isLoadingLocation ? (
@@ -171,7 +242,7 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect 
 
             {/* Location Status */}
             {locationStatus && (
-                <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-2 rounded-lg shadow-md text-xs font-medium">
+                <div className="absolute top-16 right-3 bg-blue-600 text-white px-3 py-2 rounded-lg shadow-md text-xs font-medium z-10">
                     {locationStatus}
                 </div>
             )}

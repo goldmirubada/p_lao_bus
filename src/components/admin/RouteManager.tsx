@@ -116,7 +116,7 @@ export default function RouteManager() {
                 </div>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm"
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm min-h-[44px]"
                 >
                     <Plus size={18} /> 새 노선 추가
                 </button>
@@ -125,76 +125,130 @@ export default function RouteManager() {
             {loading ? (
                 <div className="text-center py-12 text-slate-500">데이터를 불러오는 중입니다...</div>
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
-                                <th className="px-6 py-4">번호</th>
-                                <th className="px-6 py-4">이름</th>
-                                <th className="px-6 py-4">색상</th>
-                                <th className="px-6 py-4">상태</th>
-                                <th className="px-6 py-4">설명</th>
-                                <th className="px-6 py-4 text-right">관리</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {routes.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                                        등록된 노선이 없습니다.
-                                    </td>
+                <>
+                    {/* Desktop View */}
+                    <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
+                                    <th className="px-6 py-4">번호</th>
+                                    <th className="px-6 py-4">이름</th>
+                                    <th className="px-6 py-4">색상</th>
+                                    <th className="px-6 py-4">상태</th>
+                                    <th className="px-6 py-4">설명</th>
+                                    <th className="px-6 py-4 text-right">관리</th>
                                 </tr>
-                            ) : (
-                                routes.map((route) => (
-                                    <tr key={route.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-semibold text-slate-900">{route.route_number}</td>
-                                        <td className="px-6 py-4 text-slate-700">{route.route_name}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div
-                                                    className="w-8 h-8 rounded-lg shadow-sm border border-slate-200"
-                                                    style={{ backgroundColor: route.route_color }}
-                                                />
-                                                <span className="text-sm text-slate-500 font-mono">{route.route_color}</span>
-                                            </div>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {routes.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                                            등록된 노선이 없습니다.
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${route.is_active
+                                    </tr>
+                                ) : (
+                                    routes.map((route) => (
+                                        <tr key={route.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4 font-semibold text-slate-900">{route.route_number}</td>
+                                            <td className="px-6 py-4 text-slate-700">{route.route_name}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div
+                                                        className="w-8 h-8 rounded-lg shadow-sm border border-slate-200"
+                                                        style={{ backgroundColor: route.route_color }}
+                                                    />
+                                                    <span className="text-sm text-slate-500 font-mono">{route.route_color}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${route.is_active
+                                                    ? 'bg-green-50 text-green-700 border-green-200'
+                                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                                    }`}>
+                                                    {route.is_active ? '운행중' : '중단'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500 truncate max-w-xs text-sm">{route.description}</td>
+                                            <td className="px-6 py-4 text-right space-x-1">
+                                                <button
+                                                    onClick={() => openEditModal(route)}
+                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    title="수정"
+                                                >
+                                                    <Edit size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(route.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="삭제"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile View */}
+                    <div className="md:hidden space-y-4 p-4">
+                        {routes.length === 0 ? (
+                            <div className="text-center py-12 text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
+                                등록된 노선이 없습니다.
+                            </div>
+                        ) : (
+                            routes.map((route) => (
+                                <div key={route.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-bold text-slate-900">{route.route_number}</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${route.is_active
                                                 ? 'bg-green-50 text-green-700 border-green-200'
                                                 : 'bg-slate-100 text-slate-600 border-slate-200'
                                                 }`}>
                                                 {route.is_active ? '운행중' : '중단'}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-500 truncate max-w-xs text-sm">{route.description}</td>
-                                        <td className="px-6 py-4 text-right space-x-1">
-                                            <button
-                                                onClick={() => openEditModal(route)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="수정"
-                                            >
-                                                <Edit size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(route.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="삭제"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div
+                                                className="w-6 h-6 rounded-full border border-slate-200 shadow-sm"
+                                                style={{ backgroundColor: route.route_color }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-medium text-slate-800">{route.route_name}</h4>
+                                        <p className="text-sm text-slate-500 mt-1 line-clamp-2">{route.description}</p>
+                                    </div>
+
+                                    <div className="flex gap-2 pt-3 border-t border-slate-100">
+                                        <button
+                                            onClick={() => openEditModal(route)}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 rounded-lg font-medium text-sm hover:bg-blue-100 transition-colors min-h-[44px]"
+                                        >
+                                            <Edit size={16} /> 수정
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(route.id)}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 text-red-600 rounded-lg font-medium text-sm hover:bg-red-100 transition-colors min-h-[44px]"
+                                        >
+                                            <Trash2 size={16} /> 삭제
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </>
             )}
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md border border-slate-200">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4">
+                    <div className="bg-white w-full h-full md:h-auto md:max-w-md md:rounded-xl shadow-2xl p-6 md:p-8 overflow-y-auto border-none md:border border-slate-200">
                         <h3 className="text-xl font-bold mb-6 text-slate-800">
                             {editingRoute ? '노선 수정' : '새 노선 추가'}
                         </h3>
@@ -262,13 +316,13 @@ export default function RouteManager() {
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+                                    className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors min-h-[44px]"
                                 >
                                     취소
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors"
+                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors min-h-[44px]"
                                 >
                                     저장하기
                                 </button>

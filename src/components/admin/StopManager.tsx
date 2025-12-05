@@ -1,17 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Stop } from '@/lib/supabase/types';
 import { Trash2, Edit, Plus, MapPin, Image as ImageIcon } from 'lucide-react';
 import GoogleMapsWrapper from './GoogleMapsWrapper';
 import GPSMapPicker from './GPSMapPicker';
 
+const ITEMS_PER_PAGE = 20;
+
 export default function StopManager() {
     const [stops, setStops] = useState<Stop[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStop, setEditingStop] = useState<Stop | null>(null);
+
+    // Pagination state
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isFetchingMore, setIsFetchingMore] = useState(false);
+    const observerTarget = useRef<HTMLDivElement>(null);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -23,25 +31,75 @@ export default function StopManager() {
         description: ''
     });
 
+    // Initial fetch
     useEffect(() => {
-        fetchStops();
+        fetchStops(0);
     }, []);
 
-    const fetchStops = async () => {
+    // Intersection Observer for infinite scroll
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMore && !isFetchingMore && !loading) {
+                    loadMore();
+                }
+            },
+            { threshold: 1.0 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => {
+            if (observerTarget.current) {
+                observer.unobserve(observerTarget.current);
+            }
+        };
+    }, [hasMore, isFetchingMore, loading]);
+
+    const loadMore = () => {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        fetchStops(nextPage, true);
+    };
+
+    const fetchStops = async (pageIndex: number, isLoadMore = false) => {
         try {
-            setLoading(true);
+            if (isLoadMore) {
+                setIsFetchingMore(true);
+            } else {
+                setLoading(true);
+            }
+
+            const from = pageIndex * ITEMS_PER_PAGE;
+            const to = from + ITEMS_PER_PAGE - 1;
+
             const { data, error } = await supabase
                 .from('stops')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .range(from, to);
 
             if (error) throw error;
-            setStops(data || []);
+
+            const newStops = data || [];
+
+            if (newStops.length < ITEMS_PER_PAGE) {
+                setHasMore(false);
+            }
+
+            if (isLoadMore) {
+                setStops(prev => [...prev, ...newStops]);
+            } else {
+                setStops(newStops);
+            }
         } catch (error) {
             console.error('Error fetching stops:', error);
             alert('정류장 목록을 불러오는데 실패했습니다.');
         } finally {
             setLoading(false);
+            setIsFetchingMore(false);
         }
     };
 
@@ -77,7 +135,10 @@ export default function StopManager() {
 
             setIsModalOpen(false);
             resetForm();
-            fetchStops();
+            // Reset pagination and reload
+            setPage(0);
+            setHasMore(true);
+            fetchStops(0);
         } catch (error) {
             console.error('Error saving stop:', error);
             alert('정류장 저장에 실패했습니다.');
@@ -94,7 +155,9 @@ export default function StopManager() {
                 .eq('id', id);
 
             if (error) throw error;
-            fetchStops();
+
+            // Remove from local state instead of refetching everything
+            setStops(prev => prev.filter(stop => stop.id !== id));
         } catch (error) {
             console.error('Error deleting stop:', error);
             alert('정류장 삭제에 실패했습니다.');
@@ -146,85 +209,138 @@ export default function StopManager() {
                 </div>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm"
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm min-h-[44px]"
                 >
                     <Plus size={18} /> 새 정류장 추가
                 </button>
             </div>
 
-            {loading ? (
+            {loading && stops.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">데이터를 불러오는 중입니다...</div>
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
-                                <th className="px-6 py-4">이름 (라오어)</th>
-                                <th className="px-6 py-4">이름 (영어)</th>
-                                <th className="px-6 py-4">사진</th>
-                                <th className="px-6 py-4">설명</th>
-                                <th className="px-6 py-4 text-right">관리</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {stops.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                                        등록된 정류장이 없습니다.
-                                    </td>
+                <>
+                    {/* Desktop View */}
+                    <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
+                                    <th className="px-6 py-4">이름 (라오어)</th>
+                                    <th className="px-6 py-4">이름 (영어)</th>
+                                    <th className="px-6 py-4">사진</th>
+                                    <th className="px-6 py-4">설명</th>
+                                    <th className="px-6 py-4 text-right">관리</th>
                                 </tr>
-                            ) : (
-                                stops.map((stop) => (
-                                    <tr key={stop.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-semibold text-slate-900">{stop.stop_name}</td>
-                                        <td className="px-6 py-4 text-slate-700">{stop.stop_name_en}</td>
-                                        <td className="px-6 py-4">
-                                            {stop.image_url ? (
-                                                <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200">
-                                                    <img src={stop.image_url} alt="Stop" className="w-full h-full object-cover" />
-                                                </div>
-                                            ) : (
-                                                <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
-                                                    <ImageIcon size={20} />
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-500 truncate max-w-xs text-sm">{stop.description}</td>
-                                        <td className="px-6 py-4 text-right space-x-1">
-                                            <button
-                                                onClick={() => openEditModal(stop)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="수정"
-                                            >
-                                                <Edit size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(stop.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="삭제"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {stops.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                                            등록된 정류장이 없습니다.
                                         </td>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                ) : (
+                                    stops.map((stop) => (
+                                        <tr
+                                            key={stop.id}
+                                            className="hover:bg-slate-50 transition-colors cursor-pointer"
+                                            onClick={() => openEditModal(stop)}
+                                        >
+                                            <td className="px-6 py-4 font-semibold text-slate-900">{stop.stop_name}</td>
+                                            <td className="px-6 py-4 text-slate-700">{stop.stop_name_en}</td>
+                                            <td className="px-6 py-4">
+                                                {stop.image_url ? (
+                                                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200">
+                                                        <img src={stop.image_url} alt="Stop" className="w-full h-full object-cover" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
+                                                        <ImageIcon size={20} />
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500 truncate max-w-xs text-sm">{stop.description}</td>
+                                            <td className="px-6 py-4 text-right space-x-1">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDelete(stop.id);
+                                                    }}
+                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="삭제"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile View */}
+                    <div className="md:hidden space-y-4 p-4">
+                        {stops.length === 0 ? (
+                            <div className="text-center py-12 text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
+                                등록된 정류장이 없습니다.
+                            </div>
+                        ) : (
+                            stops.map((stop) => (
+                                <div key={stop.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                                    <div className="flex items-start gap-4">
+                                        {stop.image_url ? (
+                                            <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                                                <img src={stop.image_url} alt="Stop" className="w-full h-full object-cover" />
+                                            </div>
+                                        ) : (
+                                            <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200 flex-shrink-0">
+                                                <ImageIcon size={24} />
+                                            </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-slate-900 truncate">{stop.stop_name}</h4>
+                                            <p className="text-sm text-slate-600 truncate">{stop.stop_name_en}</p>
+                                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{stop.description}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2 pt-3 border-t border-slate-100">
+                                        <button
+                                            onClick={() => openEditModal(stop)}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 rounded-lg font-medium text-sm hover:bg-blue-100 transition-colors min-h-[44px]"
+                                        >
+                                            <Edit size={16} /> 수정
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(stop.id)}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 text-red-600 rounded-lg font-medium text-sm hover:bg-red-100 transition-colors min-h-[44px]"
+                                        >
+                                            <Trash2 size={16} /> 삭제
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    {/* Loading Indicator & Observer Target */}
+                    <div ref={observerTarget} className="py-4 text-center">
+                        {isFetchingMore && <span className="text-slate-500 text-sm">더 불러오는 중...</span>}
+                    </div>
+                </>
             )}
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto border border-slate-200">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4">
+                    <div className="bg-white w-full h-full md:h-auto md:max-w-5xl md:max-h-[90vh] md:rounded-xl shadow-2xl p-6 md:p-8 overflow-y-auto border-none md:border border-slate-200">
                         <h3 className="text-xl font-bold mb-6 text-slate-800">
                             {editingStop ? '정류장 수정' : '새 정류장 추가'}
                         </h3>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             {/* Left: Map */}
-                            <div className="h-[450px] bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-inner">
+                            <div className="h-[300px] md:h-[450px] bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-inner">
                                 <GoogleMapsWrapper>
                                     <GPSMapPicker
                                         initialLat={formData.lat}
@@ -308,13 +424,13 @@ export default function StopManager() {
                                     <button
                                         type="button"
                                         onClick={() => setIsModalOpen(false)}
-                                        className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+                                        className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors min-h-[44px]"
                                     >
                                         취소
                                     </button>
                                     <button
                                         type="submit"
-                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors"
+                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors min-h-[44px]"
                                     >
                                         저장하기
                                     </button>
