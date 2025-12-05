@@ -148,7 +148,11 @@ export default function RouteManager() {
                                     </tr>
                                 ) : (
                                     routes.map((route) => (
-                                        <tr key={route.id} className="hover:bg-slate-50 transition-colors">
+                                        <tr
+                                            key={route.id}
+                                            className="hover:bg-slate-50 transition-colors cursor-pointer"
+                                            onClick={() => openEditModal(route)}
+                                        >
                                             <td className="px-6 py-4 font-semibold text-slate-900">{route.route_number}</td>
                                             <td className="px-6 py-4 text-slate-700">{route.route_name}</td>
                                             <td className="px-6 py-4">
@@ -171,14 +175,10 @@ export default function RouteManager() {
                                             <td className="px-6 py-4 text-slate-500 truncate max-w-xs text-sm">{route.description}</td>
                                             <td className="px-6 py-4 text-right space-x-1">
                                                 <button
-                                                    onClick={() => openEditModal(route)}
-                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="수정"
-                                                >
-                                                    <Edit size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(route.id)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDelete(route.id);
+                                                    }}
                                                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                     title="삭제"
                                                 >
