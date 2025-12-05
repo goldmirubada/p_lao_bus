@@ -30,22 +30,12 @@ export default function StopManager() {
     const fetchStops = async () => {
         try {
             setLoading(true);
-            // Use RPC to get lat/lng easily if needed, or parse geography column
-            // For simplicity, we'll fetch raw and use a helper if we had one, 
-            // but Supabase returns geography as GeoJSON-like object or hex string depending on config.
-            // Let's use the RPC function we created: get_stop_coordinates
-
             const { data, error } = await supabase
                 .from('stops')
                 .select('*')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-
-            // For each stop, we might need to fetch lat/lng separately if geography column is tricky
-            // Or we can just use the RPC for the editing modal.
-            // For the list view, we might not need exact coords immediately.
-
             setStops(data || []);
         } catch (error) {
             console.error('Error fetching stops:', error);
@@ -148,61 +138,70 @@ export default function StopManager() {
     };
 
     return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold">정류장 목록</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-800">정류장 목록</h3>
+                    <p className="text-sm text-slate-500 mt-1">버스 정류장의 위치와 정보를 관리합니다.</p>
+                </div>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm"
                 >
-                    <Plus size={20} /> 새 정류장 추가
+                    <Plus size={18} /> 새 정류장 추가
                 </button>
             </div>
 
             {loading ? (
-                <div className="text-center py-8">로딩 중...</div>
+                <div className="text-center py-12 text-slate-500">데이터를 불러오는 중입니다...</div>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-gray-50 border-b">
-                                <th className="p-3">이름 (라오어)</th>
-                                <th className="p-3">이름 (영어)</th>
-                                <th className="p-3">사진</th>
-                                <th className="p-3">설명</th>
-                                <th className="p-3 text-right">관리</th>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
+                                <th className="px-6 py-4">이름 (라오어)</th>
+                                <th className="px-6 py-4">이름 (영어)</th>
+                                <th className="px-6 py-4">사진</th>
+                                <th className="px-6 py-4">설명</th>
+                                <th className="px-6 py-4 text-right">관리</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100">
                             {stops.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="p-8 text-center text-gray-500">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                                         등록된 정류장이 없습니다.
                                     </td>
                                 </tr>
                             ) : (
                                 stops.map((stop) => (
-                                    <tr key={stop.id} className="border-b hover:bg-gray-50">
-                                        <td className="p-3 font-medium">{stop.stop_name}</td>
-                                        <td className="p-3">{stop.stop_name_en}</td>
-                                        <td className="p-3">
+                                    <tr key={stop.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 font-semibold text-slate-900">{stop.stop_name}</td>
+                                        <td className="px-6 py-4 text-slate-700">{stop.stop_name_en}</td>
+                                        <td className="px-6 py-4">
                                             {stop.image_url ? (
-                                                <img src={stop.image_url} alt="Stop" className="w-10 h-10 object-cover rounded" />
+                                                <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200">
+                                                    <img src={stop.image_url} alt="Stop" className="w-full h-full object-cover" />
+                                                </div>
                                             ) : (
-                                                <span className="text-gray-400 text-xs">No Image</span>
+                                                <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
+                                                    <ImageIcon size={20} />
+                                                </div>
                                             )}
                                         </td>
-                                        <td className="p-3 text-gray-500 truncate max-w-xs">{stop.description}</td>
-                                        <td className="p-3 text-right space-x-2">
+                                        <td className="px-6 py-4 text-slate-500 truncate max-w-xs text-sm">{stop.description}</td>
+                                        <td className="px-6 py-4 text-right space-x-1">
                                             <button
                                                 onClick={() => openEditModal(stop)}
-                                                className="text-gray-600 hover:text-blue-600"
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="수정"
                                             >
                                                 <Edit size={18} />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(stop.id)}
-                                                className="text-gray-600 hover:text-red-600"
+                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="삭제"
                                             >
                                                 <Trash2 size={18} />
                                             </button>
@@ -217,15 +216,15 @@ export default function StopManager() {
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <h3 className="text-xl font-bold mb-4">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto border border-slate-200">
+                        <h3 className="text-xl font-bold mb-6 text-slate-800">
                             {editingStop ? '정류장 수정' : '새 정류장 추가'}
                         </h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             {/* Left: Map */}
-                            <div className="h-[400px] bg-gray-100 rounded border">
+                            <div className="h-[450px] bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-inner">
                                 <GoogleMapsWrapper>
                                     <GPSMapPicker
                                         initialLat={formData.lat}
@@ -236,89 +235,88 @@ export default function StopManager() {
                             </div>
 
                             {/* Right: Form */}
-                            <form onSubmit={handleSubmit} className="space-y-4">
+                            <form onSubmit={handleSubmit} className="space-y-5">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">정류장 이름 (라오어)</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">정류장 이름 (라오어)</label>
                                     <input
                                         type="text"
                                         required
                                         value={formData.stop_name}
                                         onChange={(e) => setFormData({ ...formData, stop_name: e.target.value })}
-                                        className="w-full border rounded p-2"
+                                        className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                                         placeholder="예: ຕະຫຼາດເຊົ້າ"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">정류장 이름 (영어)</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">정류장 이름 (영어)</label>
                                     <input
                                         type="text"
                                         value={formData.stop_name_en}
                                         onChange={(e) => setFormData({ ...formData, stop_name_en: e.target.value })}
-                                        className="w-full border rounded p-2"
+                                        className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                                         placeholder="예: Talat Sao"
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">위도 (Lat)</label>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">위도 (Lat)</label>
                                         <input
                                             type="number"
                                             step="any"
                                             value={formData.lat}
                                             onChange={(e) => setFormData({ ...formData, lat: parseFloat(e.target.value) })}
-                                            className="w-full border rounded p-2 bg-gray-50"
+                                            className="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 text-slate-600 font-mono text-sm"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">경도 (Lng)</label>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">경도 (Lng)</label>
                                         <input
                                             type="number"
                                             step="any"
                                             value={formData.lng}
                                             onChange={(e) => setFormData({ ...formData, lng: parseFloat(e.target.value) })}
-                                            className="w-full border rounded p-2 bg-gray-50"
+                                            className="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 text-slate-600 font-mono text-sm"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">사진 URL</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">사진 URL</label>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
                                             value={formData.image_url}
                                             onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                                            className="w-full border rounded p-2"
+                                            className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                                             placeholder="https://..."
                                         />
-                                        {/* 추후 파일 업로드 기능 추가 가능 */}
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">설명</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">설명</label>
                                     <textarea
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full border rounded p-2 h-20"
+                                        className="w-full border border-slate-300 rounded-lg p-2.5 h-24 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
                                         placeholder="정류장 위치 설명..."
                                     />
                                 </div>
 
-                                <div className="flex justify-end gap-2 mt-6">
+                                <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
                                     <button
                                         type="button"
                                         onClick={() => setIsModalOpen(false)}
-                                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                                        className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
                                     >
                                         취소
                                     </button>
                                     <button
                                         type="submit"
-                                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors"
                                     >
-                                        저장
+                                        저장하기
                                     </button>
                                 </div>
                             </form>

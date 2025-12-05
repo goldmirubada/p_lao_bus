@@ -108,69 +108,77 @@ export default function RouteManager() {
     };
 
     return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold">노선 목록</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-800">노선 목록</h3>
+                    <p className="text-sm text-slate-500 mt-1">등록된 버스 노선을 관리합니다.</p>
+                </div>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm"
                 >
-                    <Plus size={20} /> 새 노선 추가
+                    <Plus size={18} /> 새 노선 추가
                 </button>
             </div>
 
             {loading ? (
-                <div className="text-center py-8">로딩 중...</div>
+                <div className="text-center py-12 text-slate-500">데이터를 불러오는 중입니다...</div>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-gray-50 border-b">
-                                <th className="p-3">번호</th>
-                                <th className="p-3">이름</th>
-                                <th className="p-3">색상</th>
-                                <th className="p-3">상태</th>
-                                <th className="p-3">설명</th>
-                                <th className="p-3 text-right">관리</th>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
+                                <th className="px-6 py-4">번호</th>
+                                <th className="px-6 py-4">이름</th>
+                                <th className="px-6 py-4">색상</th>
+                                <th className="px-6 py-4">상태</th>
+                                <th className="px-6 py-4">설명</th>
+                                <th className="px-6 py-4 text-right">관리</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100">
                             {routes.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-gray-500">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                                         등록된 노선이 없습니다.
                                     </td>
                                 </tr>
                             ) : (
                                 routes.map((route) => (
-                                    <tr key={route.id} className="border-b hover:bg-gray-50">
-                                        <td className="p-3 font-medium">{route.route_number}</td>
-                                        <td className="p-3">{route.route_name}</td>
-                                        <td className="p-3">
-                                            <div className="flex items-center gap-2">
+                                    <tr key={route.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 font-semibold text-slate-900">{route.route_number}</td>
+                                        <td className="px-6 py-4 text-slate-700">{route.route_name}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
                                                 <div
-                                                    className="w-6 h-6 rounded-full border"
+                                                    className="w-8 h-8 rounded-lg shadow-sm border border-slate-200"
                                                     style={{ backgroundColor: route.route_color }}
                                                 />
-                                                <span className="text-sm text-gray-500">{route.route_color}</span>
+                                                <span className="text-sm text-slate-500 font-mono">{route.route_color}</span>
                                             </div>
                                         </td>
-                                        <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-xs ${route.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${route.is_active
+                                                ? 'bg-green-50 text-green-700 border-green-200'
+                                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                                                }`}>
                                                 {route.is_active ? '운행중' : '중단'}
                                             </span>
                                         </td>
-                                        <td className="p-3 text-gray-500 truncate max-w-xs">{route.description}</td>
-                                        <td className="p-3 text-right space-x-2">
+                                        <td className="px-6 py-4 text-slate-500 truncate max-w-xs text-sm">{route.description}</td>
+                                        <td className="px-6 py-4 text-right space-x-1">
                                             <button
                                                 onClick={() => openEditModal(route)}
-                                                className="text-gray-600 hover:text-blue-600"
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="수정"
                                             >
                                                 <Edit size={18} />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(route.id)}
-                                                className="text-gray-600 hover:text-red-600"
+                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="삭제"
                                             >
                                                 <Trash2 size={18} />
                                             </button>
@@ -185,84 +193,84 @@ export default function RouteManager() {
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                        <h3 className="text-xl font-bold mb-4">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md border border-slate-200">
+                        <h3 className="text-xl font-bold mb-6 text-slate-800">
                             {editingRoute ? '노선 수정' : '새 노선 추가'}
                         </h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">노선 번호</label>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">노선 번호</label>
                                 <input
                                     type="text"
                                     required
                                     value={formData.route_number}
                                     onChange={(e) => setFormData({ ...formData, route_number: e.target.value })}
-                                    className="w-full border rounded p-2"
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                                     placeholder="예: 1, 2A"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">노선 이름</label>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">노선 이름</label>
                                 <input
                                     type="text"
                                     required
                                     value={formData.route_name}
                                     onChange={(e) => setFormData({ ...formData, route_name: e.target.value })}
-                                    className="w-full border rounded p-2"
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                                     placeholder="예: 탓루앙 순환선"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">노선 색상</label>
-                                <div className="flex gap-2">
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">노선 색상</label>
+                                <div className="flex gap-3">
                                     <input
                                         type="color"
                                         value={formData.route_color}
                                         onChange={(e) => setFormData({ ...formData, route_color: e.target.value })}
-                                        className="h-10 w-20 p-1 border rounded"
+                                        className="h-11 w-20 p-1 border border-slate-300 rounded-lg cursor-pointer"
                                     />
                                     <input
                                         type="text"
                                         value={formData.route_color}
                                         onChange={(e) => setFormData({ ...formData, route_color: e.target.value })}
-                                        className="flex-1 border rounded p-2 uppercase"
+                                        className="flex-1 border border-slate-300 rounded-lg p-2.5 uppercase font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">설명</label>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">설명</label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    className="w-full border rounded p-2 h-20"
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 h-24 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
                                     placeholder="노선에 대한 설명..."
                                 />
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                                 <input
                                     type="checkbox"
                                     id="is_active"
                                     checked={formData.is_active}
                                     onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                                    className="w-4 h-4 text-blue-600 rounded"
+                                    className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                                 />
-                                <label htmlFor="is_active" className="text-sm text-gray-700">운행 중</label>
+                                <label htmlFor="is_active" className="text-sm font-medium text-slate-700 cursor-pointer select-none">현재 운행 중인 노선입니다</label>
                             </div>
 
-                            <div className="flex justify-end gap-2 mt-6">
+                            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                                    className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
                                 >
                                     취소
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors"
                                 >
-                                    저장
+                                    저장하기
                                 </button>
                             </div>
                         </form>
