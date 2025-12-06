@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase/client';
 import { Route, Stop, RouteStop } from '@/lib/supabase/types';
 import { Trash2, ArrowUp, ArrowDown, Plus, Map as MapIcon } from 'lucide-react';
 import PathEditorModal from './PathEditorModal';
+import RouteMap from '../user/RouteMap';
+import GoogleMapsWrapper from './GoogleMapsWrapper';
 
 type RouteStopWithDetail = RouteStop & {
     stops: Stop;
@@ -56,9 +58,31 @@ export default function RouteStopEditor() {
 
         if (error) {
             console.error('Error fetching route stops:', error);
+            setRouteStops([]);
         } else {
+            // Fetch coordinates for each stop using RPC to ensure we have valid lat/lng
+            // This is required because RouteMap expects GeoJSON format or explicit coordinates
+            const stopsWithCoords = await Promise.all(
+                (data || []).map(async (rs: any) => {
+                    const { data: coordData } = await supabase
+                        .rpc('get_stop_coordinates', { stop_id: rs.stops.id });
+
+                    if (coordData && coordData.length > 0) {
+                        // Add GeoJSON-formatted location which RouteMap expects
+                        rs.stops.location = {
+                            type: 'Point',
+                            coordinates: [coordData[0].lng, coordData[0].lat]
+                        };
+                        // Also add flat lat/lng for other uses if needed
+                        rs.stops.lat = coordData[0].lat;
+                        rs.stops.lng = coordData[0].lng;
+                    }
+                    return rs;
+                })
+            );
+
             // @ts-ignore - Supabase types join issue
-            setRouteStops(data || []);
+            setRouteStops(stopsWithCoords);
         }
         setLoading(false);
     };
@@ -393,6 +417,25 @@ export default function RouteStopEditor() {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Route Map Preview */}
+            {selectedRouteId && routeStops.length > 0 && routes.find(r => r.id === selectedRouteId) && (
+                <div className="mt-8">
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <span className="w-2 h-6 bg-purple-600 rounded-full"></span>
+                            노선 미리보기
+                        </h3>
+                        <RouteMap
+                            route={routes.find(r => r.id === selectedRouteId)!}
+                            stops={routeStops.map(rs => ({
+                                stops: rs.stops,
+                                path_coordinates: rs.path_coordinates
+                            }))}
+                        />
                     </div>
                 </div>
             )}
