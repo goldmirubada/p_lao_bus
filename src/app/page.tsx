@@ -133,7 +133,7 @@ export default function SchematicMap() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Route Selection */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl shadow-lg p-6 sticky top-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 sticky top-6 z-20">
                 <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                   <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
                   노선 선택
