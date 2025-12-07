@@ -470,11 +470,13 @@ export default function RouteStopEditor() {
                             노선 미리보기
                         </h3>
                         <RouteMap
-                            route={routes.find(r => r.id === selectedRouteId)!}
-                            stops={routeStops.map(rs => ({
-                                stops: rs.stops,
-                                path_coordinates: rs.path_coordinates
-                            }))}
+                            routes={[routes.find(r => r.id === selectedRouteId)!]}
+                            stopsByRoute={{
+                                [selectedRouteId]: routeStops.map(rs => ({
+                                    stops: rs.stops,
+                                    path_coordinates: rs.path_coordinates
+                                }))
+                            }}
                             selectableStops={allStops}
                             onStopSelect={handleAddStop}
                         />

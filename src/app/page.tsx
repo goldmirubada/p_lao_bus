@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Route, Stop, RouteStop } from '@/lib/supabase/types';
 import { MapPin, Navigation as NavigationIcon, Info } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import GoogleMapsWrapper from '@/components/admin/GoogleMapsWrapper';
-import RouteMap from '@/components/user/RouteMap';
+
+const RouteMap = dynamic(() => import('@/components/user/RouteMap'), { ssr: false });
 
 type RouteStopWithDetail = RouteStop & {
   stops: Stop;
@@ -15,8 +17,9 @@ export default function SchematicMap() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [routeStops, setRouteStops] = useState<{ [key: string]: RouteStopWithDetail[] }>({});
   const [loading, setLoading] = useState(true);
-  const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<string>('all');
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -128,141 +131,216 @@ export default function SchematicMap() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Route List */}
+            {/* Left: Route Selection */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-xl shadow-lg p-6 sticky top-6">
                 <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                   <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
-                  운행 노선
+                  노선 선택
                 </h2>
-                <div className="space-y-2">
-                  {routes.map((route) => (
-                    <button
-                      key={route.id}
-                      onClick={() => setSelectedRoute(route.id)}
-                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${selectedRoute === route.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                        }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold shadow-md"
-                          style={{ backgroundColor: route.route_color }}
-                        >
-                          {route.route_number}
+
+                <div className="relative">
+                  <button
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-blue-400 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      {selectedRoute === 'all' ? (
+                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white text-xs font-bold">
+                          ALL
                         </div>
-                        <div className="flex-1">
-                          <div className="font-semibold text-slate-800">{route.route_name}</div>
-                          <div className="text-xs text-slate-500 mt-1">
-                            {routeStops[route.id]?.length || 0}개 정류장
+                      ) : (
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
+                          style={{ backgroundColor: routes.find(r => r.id === selectedRoute)?.route_color }}
+                        >
+                          {routes.find(r => r.id === selectedRoute)?.route_number}
+                        </div>
+                      )}
+                      <span className="font-bold text-lg text-slate-700">
+                        {selectedRoute === 'all' ? '전체 노선 보기' : routes.find(r => r.id === selectedRoute)?.route_name}
+                      </span>
+                    </div>
+                    <svg
+                      className={`w-6 h-6 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {isDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 max-h-[400px] overflow-y-auto animate-fadeIn">
+                      <button
+                        onClick={() => {
+                          setSelectedRoute('all');
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`w-full p-4 flex items-center gap-3 hover:bg-slate-50 transition-colors border-b border-slate-50 ${selectedRoute === 'all' ? 'bg-blue-50' : ''}`}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white text-xs font-bold">
+                          ALL
+                        </div>
+                        <span className={`font-medium ${selectedRoute === 'all' ? 'text-blue-700' : 'text-slate-700'}`}>
+                          전체 노선 보기
+                        </span>
+                      </button>
+
+                      {routes.map(route => (
+                        <button
+                          key={route.id}
+                          onClick={() => {
+                            setSelectedRoute(route.id);
+                            setIsDropdownOpen(false);
+                          }}
+                          className={`w-full p-4 flex items-center gap-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 ${selectedRoute === route.id ? 'bg-blue-50' : ''}`}
+                        >
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
+                            style={{ backgroundColor: route.route_color }}
+                          >
+                            {route.route_number}
+                          </div>
+                          <div className="text-left">
+                            <div className={`font-medium ${selectedRoute === route.id ? 'text-blue-700' : 'text-slate-700'}`}>
+                              {route.route_name}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {route.route_number}번 버스
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Route Info (if single route selected) */}
+                {selectedRoute && selectedRoute !== 'all' && (
+                  <div className="mt-6 animate-fadeIn">
+                    {(() => {
+                      const route = routes.find(r => r.id === selectedRoute);
+                      if (!route) return null;
+                      return (
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div
+                              className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-sm"
+                              style={{ backgroundColor: route.route_color }}
+                            >
+                              {route.route_number}
+                            </div>
+                            <div className="font-bold text-slate-800">{route.route_name}</div>
+                          </div>
+                          <p className="text-sm text-slate-600 leading-relaxed">
+                            {route.description || '노선 설명이 없습니다.'}
+                          </p>
+                          <div className="mt-4 pt-4 border-t border-slate-200 text-sm text-slate-500 flex justify-between">
+                            <span>총 정류장</span>
+                            <span className="font-bold text-slate-700">{routeStops[route.id]?.length || 0}개</span>
                           </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Right: Route Map */}
             <div className="lg:col-span-2">
-              {selectedRoute ? (
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  {(() => {
-                    const route = routes.find(r => r.id === selectedRoute);
-                    const stops = routeStops[selectedRoute] || [];
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
+                  <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <MapPin className="text-blue-600" />
+                    {selectedRoute === 'all' ? '전체 노선도' : '노선 상세 정보'}
+                  </h3>
+                </div>
 
-                    return (
-                      <>
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
-                          <div
-                            className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg"
-                            style={{ backgroundColor: route?.route_color }}
-                          >
-                            {route?.route_number}
+                {/* Google Maps Route Display */}
+                <div className="mb-6">
+                  <GoogleMapsWrapper>
+                    <RouteMap
+                      routes={selectedRoute === 'all' ? routes : routes.filter(r => r.id === selectedRoute)}
+                      stopsByRoute={routeStops}
+                      onStopSelect={(stopId) => {
+                        // Find the stop object from all stops
+                        // We need to search through all routeStops
+                        let foundStop: Stop | null = null;
+                        Object.values(routeStops).flat().forEach(rs => {
+                          if (rs.stops.id === stopId) foundStop = rs.stops;
+                        });
+                        if (foundStop) setSelectedStop(foundStop);
+                      }}
+                    />
+                  </GoogleMapsWrapper>
+                </div>
+
+                {/* Schematic Route Display (Only for single route) */}
+                {selectedRoute !== 'all' && (
+                  <div className="relative">
+                    {(() => {
+                      const route = routes.find(r => r.id === selectedRoute);
+                      const stops = routeStops[selectedRoute!] || [];
+
+                      if (stops.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-slate-500">
+                            이 노선에 등록된 정류장이 없습니다.
                           </div>
-                          <div>
-                            <h3 className="text-xl font-bold text-slate-800">{route?.route_name}</h3>
-                            <p className="text-sm text-slate-500">{route?.description}</p>
-                          </div>
-                        </div>
+                        );
+                      }
 
-                        {/* Google Maps Route Display */}
-                        {stops.length > 0 && route && (
-                          <div className="mb-6">
-                            <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                              <MapPin size={16} className="text-blue-600" />
-                              노선 지도
-                            </h4>
-                            <GoogleMapsWrapper>
-                              <RouteMap route={route} stops={stops} />
-                            </GoogleMapsWrapper>
-                          </div>
-                        )}
+                      return (
+                        <div className="space-y-0">
+                          {stops.map((rs, index) => (
+                            <div key={rs.id} className="relative flex items-center">
+                              {/* Vertical Line */}
+                              {index < stops.length - 1 && (
+                                <div
+                                  className="absolute left-6 top-12 w-1 h-full -z-10"
+                                  style={{ backgroundColor: route?.route_color }}
+                                ></div>
+                              )}
 
-                        {/* Schematic Route Display */}
-                        <div className="relative">
-                          {stops.length === 0 ? (
-                            <div className="text-center py-12 text-slate-500">
-                              이 노선에 등록된 정류장이 없습니다.
-                            </div>
-                          ) : (
-                            <div className="space-y-0">
-                              {stops.map((rs, index) => (
-                                <div key={rs.id} className="relative flex items-center">
-                                  {/* Vertical Line */}
-                                  {index < stops.length - 1 && (
-                                    <div
-                                      className="absolute left-6 top-12 w-1 h-full -z-10"
-                                      style={{ backgroundColor: route?.route_color }}
-                                    ></div>
-                                  )}
-
-                                  {/* Stop Item */}
-                                  <button
-                                    onClick={() => setSelectedStop(rs.stops)}
-                                    className="flex items-center gap-4 p-4 w-full hover:bg-slate-50 rounded-lg transition-colors group"
-                                  >
-                                    {/* Stop Circle */}
-                                    <div
-                                      className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0 ring-4 ring-white"
-                                      style={{ backgroundColor: route?.route_color }}
-                                    >
-                                      {index + 1}
-                                    </div>
-
-                                    {/* Stop Info */}
-                                    <div className="flex-1 text-left">
-                                      <div className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-                                        {rs.stops?.stop_name}
-                                      </div>
-                                      {rs.stops?.stop_name_en && (
-                                        <div className="text-sm text-slate-500">
-                                          {rs.stops.stop_name_en}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {/* Info Icon */}
-                                    <Info size={20} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
-                                  </button>
+                              {/* Stop Item */}
+                              <button
+                                onClick={() => setSelectedStop(rs.stops)}
+                                className="flex items-center gap-4 p-4 w-full hover:bg-slate-50 rounded-lg transition-colors group"
+                              >
+                                {/* Stop Circle */}
+                                <div
+                                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0 ring-4 ring-white"
+                                  style={{ backgroundColor: route?.route_color }}
+                                >
+                                  {index + 1}
                                 </div>
-                              ))}
+
+                                {/* Stop Info */}
+                                <div className="flex-1 text-left">
+                                  <div className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                    {rs.stops?.stop_name}
+                                  </div>
+                                  {rs.stops?.stop_name_en && (
+                                    <div className="text-sm text-slate-500">
+                                      {rs.stops.stop_name_en}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Info Icon */}
+                                <Info size={20} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
+                              </button>
                             </div>
-                          )}
+                          ))}
                         </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-                  <div className="text-6xl mb-4">👈</div>
-                  <h3 className="text-xl font-bold text-slate-800 mb-2">노선을 선택하세요</h3>
-                  <p className="text-slate-600">왼쪽 목록에서 노선을 클릭하면 정류장을 볼 수 있습니다.</p>
-                </div>
-              )}
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
