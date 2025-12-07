@@ -148,9 +148,9 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = [], o
                     if (loc.coordinates && Array.isArray(loc.coordinates)) {
                         lng = loc.coordinates[0];
                         lat = loc.coordinates[1];
-                    } else if (typeof stop.lat === 'number' && typeof stop.lng === 'number') {
-                        lat = stop.lat;
-                        lng = stop.lng;
+                    } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
+                        lat = (stop as any).lat;
+                        lng = (stop as any).lng;
                     }
                 }
 
