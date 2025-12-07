@@ -31,9 +31,13 @@ export default function StopManager() {
         description: ''
     });
 
+    // All existing stops coordinates for map display
+    const [allStopsCoordinates, setAllStopsCoordinates] = useState<Array<{ lat: number, lng: number, name: string }>>([]);
+
     // Initial fetch
     useEffect(() => {
         fetchStops(0);
+        fetchAllStopLocations();
     }, []);
 
     // Intersection Observer for infinite scroll
@@ -100,6 +104,52 @@ export default function StopManager() {
         } finally {
             setLoading(false);
             setIsFetchingMore(false);
+        }
+    };
+
+    const fetchAllStopLocations = async () => {
+        try {
+            // Fetch all stops to display on map (just id, name, and location if possible)
+            // Note: select('*') might be heavy if we have many images/descriptions, but for now it's safest.
+            // Optimized: select only needed fields. PostGIS location needs parsing or RPC.
+            // Let's use the RPC 'get_stop_coordinates' for each stop? No, too many requests.
+            // Let's try to get all stops and assuming we can parse or if we have a view.
+            // For now, let's fetch all and Promise.all with RPC like RouteStopEditor does, but only for the map.
+            // Optimization: Create a new RPC 'get_all_stops_coordinates' would be better but let's stick to client side for now.
+
+            const { data, error } = await supabase
+                .from('stops')
+                .select('id, stop_name, stop_name_en');
+
+            if (error) throw error;
+
+            if (data) {
+                // We need coordinates. The standard select doesn't give us easily usable lat/lng from geography type directly without casting
+                // unless we use a modified select or RPC.
+                // Let's use a batch RPC approach or just iterate.
+                // Iterating 100 stops is 100 requests. Not great.
+                // BUT, RouteStopEditor does it. So it's the "accepted" way currently.
+
+                const stopsWithCoords = await Promise.all(
+                    data.map(async (stop) => {
+                        const { data: coordData } = await supabase
+                            .rpc('get_stop_coordinates', { stop_id: stop.id });
+
+                        if (coordData && coordData.length > 0) {
+                            return {
+                                lat: coordData[0].lat,
+                                lng: coordData[0].lng,
+                                name: stop.stop_name
+                            };
+                        }
+                        return null;
+                    })
+                );
+
+                setAllStopsCoordinates(stopsWithCoords.filter((s): s is { lat: number, lng: number, name: string } => s !== null));
+            }
+        } catch (error) {
+            console.error('Error fetching stop locations:', error);
         }
     };
 
@@ -346,6 +396,7 @@ export default function StopManager() {
                                         initialLat={formData.lat}
                                         initialLng={formData.lng}
                                         onLocationSelect={handleLocationSelect}
+                                        otherStops={allStopsCoordinates}
                                     />
                                 </GoogleMapsWrapper>
                             </div>

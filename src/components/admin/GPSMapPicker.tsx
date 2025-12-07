@@ -7,13 +7,19 @@ interface GPSMapPickerProps {
     initialLat?: number;
     initialLng?: number;
     onLocationSelect: (lat: number, lng: number) => void;
+    otherStops?: Array<{
+        lat: number;
+        lng: number;
+        name: string;
+    }>;
 }
 
-export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect }: GPSMapPickerProps) {
+export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect, otherStops = [] }: GPSMapPickerProps) {
     const mapRef = useRef<HTMLDivElement>(null);
     const [map, setMap] = useState<google.maps.Map | null>(null);
     const markerRef = useRef<google.maps.Marker | null>(null);
     const currentLocationMarkerRef = useRef<google.maps.Marker | null>(null);
+    const otherMarkersRef = useRef<google.maps.Marker[]>([]);
     const [locationStatus, setLocationStatus] = useState<string>('');
     const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
@@ -148,6 +154,34 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect 
         });
 
     }, [mapRef]); // Run once on mount
+
+    useEffect(() => {
+        if (!map) return;
+
+        // Clear existing other markers
+        otherMarkersRef.current.forEach(marker => marker.setMap(null));
+        otherMarkersRef.current = [];
+
+        // Add new markers for other stops
+        otherStops.forEach(stop => {
+            const marker = new google.maps.Marker({
+                position: { lat: stop.lat, lng: stop.lng },
+                map: map,
+                title: stop.name,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 6,
+                    fillColor: '#334155', // Slate-700
+                    fillOpacity: 0.9,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2,
+                },
+                clickable: true, // Allow clicking to see title/tooltip
+            });
+            otherMarkersRef.current.push(marker);
+        });
+
+    }, [map, otherStops]);
 
     // Initialize Autocomplete
     useEffect(() => {
