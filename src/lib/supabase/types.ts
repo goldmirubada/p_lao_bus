@@ -3,10 +3,19 @@ export type Route = {
     route_number: string;
     route_name: string;
     route_color: string;
+    route_type: string; // Legacy, kept for reference
+    group_id?: string; // Foreign Key to route_groups
     description: string | null;
     is_active: boolean;
     created_at: string;
     updated_at: string;
+};
+
+export type RouteGroup = {
+    id: string;
+    name: string;
+    sort_order: number;
+    created_at: string;
 };
 
 export type Stop = {
