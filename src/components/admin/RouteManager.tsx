@@ -223,7 +223,7 @@ export default function RouteManager() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${route.is_active
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${route.is_active
                                                         ? 'bg-green-50 text-green-700 border-green-200'
                                                         : 'bg-slate-100 text-slate-600 border-slate-200'
                                                         }`}>

@@ -22,7 +22,9 @@ interface RouteMapProps {
     onStopSelect?: (stopId: string) => void;
 }
 
-export default function RouteMap({ routes, stopsByRoute, selectableStops = [], onStopSelect }: RouteMapProps) {
+const DEFAULT_STOPS: Stop[] = [];
+
+export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAULT_STOPS, onStopSelect }: RouteMapProps) {
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
     const userMarkerRef = useRef<google.maps.Marker | null>(null);
     const userPulseMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -300,26 +302,48 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = [], o
     }, [routes, stopsByRoute, selectableStops, mounted]);
 
     const handleMyLocationClick = () => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const pos = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                    };
-                    setUserLocation(pos);
-                    if (mapInstanceRef.current) {
-                        mapInstanceRef.current.setCenter(pos);
-                        mapInstanceRef.current.setZoom(15);
-                    }
-                },
-                () => {
-                    alert('위치 정보를 가져올 수 없습니다.');
-                }
-            );
-        } else {
+        if (!navigator.geolocation) {
             alert('이 브라우저에서는 위치 서비스를 지원하지 않습니다.');
+            return;
         }
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        };
+
+        const success = (position: GeolocationPosition) => {
+            const pos = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+            };
+            setUserLocation(pos);
+            if (mapInstanceRef.current) {
+                console.log('Moving map to user location:', pos);
+                mapInstanceRef.current.setCenter(pos); // Changed from panTo to setCenter for reliable long-distance jumps
+                mapInstanceRef.current.setZoom(17);
+            }
+        };
+
+        const error = (err: GeolocationPositionError) => {
+            console.warn('Geolocation error:', err);
+            let message = '위치 정보를 가져올 수 없습니다.';
+            switch (err.code) {
+                case err.PERMISSION_DENIED:
+                    message = '위치 정보 제공이 차단되어 있습니다. 브라우저 설정에서 허용해주세요.';
+                    break;
+                case err.POSITION_UNAVAILABLE:
+                    message = '위치 정보를 사용할 수 없습니다.';
+                    break;
+                case err.TIMEOUT:
+                    message = '위치 정보 요청 시간이 초과되었습니다.';
+                    break;
+            }
+            alert(message);
+        };
+
+        navigator.geolocation.getCurrentPosition(success, error, options);
     };
 
     if (!mounted) {
@@ -333,7 +357,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = [], o
             {/* My Location Button */}
             <button
                 onClick={handleMyLocationClick}
-                className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg hover:bg-slate-50 transition-colors z-10 text-slate-700"
+                className="absolute bottom-24 right-4 bg-white p-3 rounded-full shadow-lg hover:bg-slate-50 transition-colors z-10 text-slate-700"
                 title="내 위치"
             >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
