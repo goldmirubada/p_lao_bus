@@ -82,10 +82,10 @@ export default function RouteMap({ route, stops, selectableStops = [], onStopSel
                         icon: {
                             path: google.maps.SymbolPath.CIRCLE,
                             scale: 6,
-                            fillColor: '#94a3b8', // Slate-400 (Gray)
-                            fillOpacity: 0.7,
+                            fillColor: '#334155', // Slate-700 (Darker Gray)
+                            fillOpacity: 0.9,
                             strokeColor: '#ffffff',
-                            strokeWeight: 1,
+                            strokeWeight: 2,
                         },
                         title: stop.stop_name,
                         zIndex: 1 // Lower z-index than route stops
