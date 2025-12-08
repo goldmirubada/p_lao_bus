@@ -109,47 +109,28 @@ export default function StopManager() {
 
     const fetchAllStopLocations = async () => {
         try {
-            // Fetch all stops to display on map (just id, name, and location if possible)
-            // Note: select('*') might be heavy if we have many images/descriptions, but for now it's safest.
-            // Optimized: select only needed fields. PostGIS location needs parsing or RPC.
-            // Let's use the RPC 'get_stop_coordinates' for each stop? No, too many requests.
-            // Let's try to get all stops and assuming we can parse or if we have a view.
-            // For now, let's fetch all and Promise.all with RPC like RouteStopEditor does, but only for the map.
-            // Optimization: Create a new RPC 'get_all_stops_coordinates' would be better but let's stick to client side for now.
-
+            // Optimized: Fetch all stops with coordinates in a single RPC call
             const { data, error } = await supabase
-                .from('stops')
-                .select('id, stop_name, stop_name_en');
+                .rpc('get_stops_with_coordinates');
 
             if (error) throw error;
 
             if (data) {
-                // We need coordinates. The standard select doesn't give us easily usable lat/lng from geography type directly without casting
-                // unless we use a modified select or RPC.
-                // Let's use a batch RPC approach or just iterate.
-                // Iterating 100 stops is 100 requests. Not great.
-                // BUT, RouteStopEditor does it. So it's the "accepted" way currently.
+                // Map the RPC result to the format expected by the map component
+                const stopsWithCoords = data.map((stop: any) => ({
+                    lat: stop.lat,
+                    lng: stop.lng,
+                    name: stop.stop_name
+                }));
 
-                const stopsWithCoords = await Promise.all(
-                    data.map(async (stop) => {
-                        const { data: coordData } = await supabase
-                            .rpc('get_stop_coordinates', { stop_id: stop.id });
-
-                        if (coordData && coordData.length > 0) {
-                            return {
-                                lat: coordData[0].lat,
-                                lng: coordData[0].lng,
-                                name: stop.stop_name
-                            };
-                        }
-                        return null;
-                    })
-                );
-
-                setAllStopsCoordinates(stopsWithCoords.filter((s): s is { lat: number, lng: number, name: string } => s !== null));
+                setAllStopsCoordinates(stopsWithCoords);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching stop locations:', error);
+            console.error('Error details:', JSON.stringify(error, null, 2));
+            if (error?.message?.includes('function') && error?.message?.includes('does not exist')) {
+                alert('데이터베이스 함수가 없습니다. SQL 스크립트를 실행해주세요.');
+            }
         }
     };
 
@@ -185,10 +166,14 @@ export default function StopManager() {
 
             setIsModalOpen(false);
             resetForm();
-            // Reset pagination and reload
+            // Reset pagination and reload list
             setPage(0);
             setHasMore(true);
             fetchStops(0);
+
+            // Critical Fix: Refresh map markers immediately
+            fetchAllStopLocations();
+
         } catch (error) {
             console.error('Error saving stop:', error);
             alert('정류장 저장에 실패했습니다.');

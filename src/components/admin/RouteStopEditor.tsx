@@ -44,28 +44,25 @@ export default function RouteStopEditor() {
     };
 
     const fetchAllStops = async () => {
-        const { data } = await supabase.from('stops').select('*').order('stop_name');
+        // Optimized: Fetch all stops with coordinates in a single RPC call
+        const { data, error } = await supabase
+            .rpc('get_stops_with_coordinates');
 
         if (data) {
-            // Fetch coordinates for all stops to display on map
-            const stopsWithCoords = await Promise.all(
-                data.map(async (stop: any) => {
-                    const { data: coordData } = await supabase
-                        .rpc('get_stop_coordinates', { stop_id: stop.id });
-
-                    if (coordData && coordData.length > 0) {
-                        stop.lat = coordData[0].lat;
-                        stop.lng = coordData[0].lng;
-                        stop.location = {
-                            type: 'Point',
-                            coordinates: [coordData[0].lng, coordData[0].lat]
-                        };
-                    }
-                    return stop;
-                })
-            );
+            const stopsWithCoords = data.map((stop: any) => ({
+                ...stop,
+                // Add GeoJSON-formatted location which RouteMap expects
+                location: {
+                    type: 'Point',
+                    coordinates: [stop.lng, stop.lat]
+                },
+                // Add flat lat/lng
+                lat: stop.lat,
+                lng: stop.lng
+            }));
             setAllStops(stopsWithCoords);
         } else {
+            console.error('Error fetching stops:', error);
             setAllStops([]);
         }
     };

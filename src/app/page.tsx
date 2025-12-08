@@ -104,6 +104,16 @@ export default function SchematicMap() {
         localStorage.setItem('cached_routes', JSON.stringify(routesData));
       }
 
+      // Optimization: Fetch ALL stops with coordinates once
+      const { data: allStopsData } = await supabase.rpc('get_stops_with_coordinates');
+      const stopLocationMap = new Map();
+
+      if (allStopsData) {
+        allStopsData.forEach((stop: any) => {
+          stopLocationMap.set(stop.id, { lat: stop.lat, lng: stop.lng });
+        });
+      }
+
       // Fetch route stops for each route
       if (routesData) {
         const stopsData: { [key: string]: RouteStopWithDetail[] } = {};
@@ -116,22 +126,21 @@ export default function SchematicMap() {
             .order('sequence_order');
 
           if (!error && data) {
-            // Fetch coordinates for each stop using RPC
-            const stopsWithCoords = await Promise.all(
-              data.map(async (rs: any) => {
-                const { data: coordData } = await supabase
-                  .rpc('get_stop_coordinates', { stop_id: rs.stops.id });
-
-                if (coordData && coordData.length > 0) {
-                  // Add GeoJSON-formatted location
-                  rs.stops.location = {
-                    type: 'Point',
-                    coordinates: [coordData[0].lng, coordData[0].lat]
-                  };
-                }
-                return rs;
-              })
-            );
+            // Attach coordinates from Map instead of N+1 RPC calls
+            const stopsWithCoords = data.map((rs: any) => {
+              const coords = stopLocationMap.get(rs.stops.id);
+              if (coords) {
+                // Add GeoJSON-formatted location
+                rs.stops.location = {
+                  type: 'Point',
+                  coordinates: [coords.lng, coords.lat] // GeoJSON is [lng, lat]
+                };
+                // Also add flat lat/lng for convenience
+                rs.stops.lat = coords.lat;
+                rs.stops.lng = coords.lng;
+              }
+              return rs;
+            });
 
             // @ts-ignore
             stopsData[route.id] = stopsWithCoords;
