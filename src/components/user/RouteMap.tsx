@@ -32,6 +32,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
     const userMarkerRef = useRef<google.maps.Marker | null>(null);
     const userPulseMarkerRef = useRef<google.maps.Marker | null>(null);
     const [mounted, setMounted] = useState(false);
+    const [mapReady, setMapReady] = useState(false);
 
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -84,6 +85,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                     gestureHandling: 'greedy', // Allow zooming without CTRL key
                 });
                 mapInstanceRef.current = map;
+                setMapReady(true);
             }
         };
         initMap();
@@ -92,7 +94,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
     // Handle User Marker
     useEffect(() => {
         const updateUserMarker = async () => {
-            if (!mapInstanceRef.current || !window.google || !userLocation) return;
+            if (!mapReady || !mapInstanceRef.current || !window.google || !userLocation) return;
 
             const { Marker } = await google.maps.importLibrary("marker") as any;
 
@@ -135,14 +137,12 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
             }
         };
         updateUserMarker();
-    }, [userLocation, mounted]);
+    }, [userLocation, mounted, mapReady]);
 
     // Handle Routes and Stops
     useEffect(() => {
         const renderMapObjects = async () => {
-            if (!mapInstanceRef.current || !window.google) return;
-
-            console.log('Rendering routes:', routes.length);
+            if (!mapReady || !mapInstanceRef.current || !window.google) return;
 
             // Load necessary libraries
             const { Marker } = await google.maps.importLibrary("marker") as any;
@@ -158,21 +158,25 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
             polylinesRef.current.forEach(polyline => polyline.setMap(null));
             polylinesRef.current = [];
 
-            // 1. Render Selectable Stops (All available stops)
+            // 1. Render Selectable Stops
             if (selectableStops.length > 0) {
                 selectableStops.forEach(stop => {
                     let lat: number | null = null;
                     let lng: number | null = null;
 
                     if (stop.location) {
+                        // Type assertion for flexibility since location can be string or object depending on serialization
                         const loc = stop.location as any;
                         if (loc.coordinates && Array.isArray(loc.coordinates)) {
                             lng = loc.coordinates[0];
                             lat = loc.coordinates[1];
-                        } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
-                            lat = (stop as any).lat;
-                            lng = (stop as any).lng;
+                        } else if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+                            lat = loc.lat;
+                            lng = loc.lng;
                         }
+                    } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
+                        lat = (stop as any).lat;
+                        lng = (stop as any).lng;
                     }
 
                     if (lat !== null && lng !== null) {
@@ -226,10 +230,13 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                         if (loc.coordinates && Array.isArray(loc.coordinates)) {
                             lng = loc.coordinates[0];
                             lat = loc.coordinates[1];
-                        } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
-                            lat = (stop as any).lat;
-                            lng = (stop as any).lng;
+                        } else if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+                            lat = loc.lat;
+                            lng = loc.lng;
                         }
+                    } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
+                        lat = (stop as any).lat;
+                        lng = (stop as any).lng;
                     }
 
                     if (lat !== null && lng !== null) {
@@ -324,7 +331,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
         };
         renderMapObjects();
 
-    }, [routes, stopsByRoute, selectableStops, mounted]);
+    }, [routes, stopsByRoute, selectableStops, mounted, mapReady]);
 
     const handleMyLocationClick = () => {
         if (!navigator.geolocation) {
@@ -346,7 +353,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
             setUserLocation(pos);
             if (mapInstanceRef.current) {
                 console.log('Moving map to user location:', pos);
-                mapInstanceRef.current.setCenter(pos); // Changed from panTo to setCenter for reliable long-distance jumps
+                mapInstanceRef.current.setCenter(pos);
                 mapInstanceRef.current.setZoom(17);
             }
         };
