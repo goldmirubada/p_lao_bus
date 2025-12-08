@@ -104,13 +104,7 @@ export default function RouteMap({
                     streetViewControl: false,
                     fullscreenControl: false,
                     zoomControl: false, // We use custom buttons? Or default?
-                    styles: [
-                        {
-                            featureType: "poi",
-                            elementType: "labels",
-                            stylers: [{ visibility: "off" }]
-                        }
-                    ],
+                    // styles: [], // customized styles removed to show POIs
                     gestureHandling: 'greedy', // Allow zooming without CTRL key
                 });
 
