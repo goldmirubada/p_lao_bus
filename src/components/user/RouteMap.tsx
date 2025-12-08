@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Route, Stop } from '@/lib/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { PathResult } from '@/lib/graph/types';
 
 // Type declaration for Google Maps
 declare global {
@@ -22,11 +23,25 @@ interface RouteMapProps {
     selectableStops?: Stop[];
     onStopSelect?: (stopId: string) => void;
     onMyLocationClick?: () => void;
+    onMapClick?: (lat: number, lng: number) => void;
+    highlightedPath?: PathResult | null;
+    startStop?: Stop | null;
+    endStop?: Stop | null;
 }
 
 const DEFAULT_STOPS: Stop[] = [];
 
-export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAULT_STOPS, onStopSelect, onMyLocationClick }: RouteMapProps) {
+export default function RouteMap({
+    routes,
+    stopsByRoute,
+    selectableStops = DEFAULT_STOPS,
+    onStopSelect,
+    onMyLocationClick,
+    onMapClick,
+    highlightedPath,
+    startStop,
+    endStop
+}: RouteMapProps) {
     const { t } = useLanguage();
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
     const userMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -36,9 +51,12 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
 
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
+    const markerLibRef = useRef<any>(null); // Cache Marker Class
     const markersRef = useRef<google.maps.Marker[]>([]);
     const selectableMarkersRef = useRef<google.maps.Marker[]>([]);
     const polylinesRef = useRef<google.maps.Polyline[]>([]);
+    const pathPolylinesRef = useRef<google.maps.Polyline[]>([]);
+    const selectedPointMarkersRef = useRef<google.maps.Marker[]>([]);
     const boundsRef = useRef<string>('');
 
     useEffect(() => {
@@ -56,8 +74,8 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                     };
                     setUserLocation(pos);
 
-                    // Center map on user location if map is initialized
-                    if (mapInstanceRef.current) {
+                    // Center map on user location if map is initialized and NO path is highlighted
+                    if (mapInstanceRef.current && !highlightedPath) {
                         mapInstanceRef.current.setCenter(pos);
                         mapInstanceRef.current.setZoom(15);
                     }
@@ -76,28 +94,61 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
 
             if (!mapInstanceRef.current) {
                 const { Map } = await google.maps.importLibrary("maps") as any;
+                const { Marker } = await google.maps.importLibrary("marker") as any;
+                markerLibRef.current = Marker;
 
                 const map = new Map(mapRef.current, {
                     center: { lat: 17.9757, lng: 102.6331 }, // Default Vientiane
                     zoom: 13,
                     mapTypeControl: false,
                     streetViewControl: false,
+                    fullscreenControl: false,
+                    zoomControl: false, // We use custom buttons? Or default?
+                    styles: [
+                        {
+                            featureType: "poi",
+                            elementType: "labels",
+                            stylers: [{ visibility: "off" }]
+                        }
+                    ],
                     gestureHandling: 'greedy', // Allow zooming without CTRL key
                 });
+
+                map.addListener('click', (e: any) => {
+                    if (onMapClick) {
+                        const lat = e.latLng.lat();
+                        const lng = e.latLng.lng();
+                        console.log('Map Clicked:', lat, lng);
+                        onMapClick(lat, lng);
+                    }
+                });
+
                 mapInstanceRef.current = map;
                 setMapReady(true);
             }
         };
-        initMap();
-    }, [mounted]);
 
-    // Handle User Marker
+        if (window.google && window.google.maps) {
+            initMap();
+        } else {
+            // Poll if needed or trust wrapper?
+            // GoogleMapsWrapper handles loading, so window.google SHOULD appear.
+            const interval = setInterval(() => {
+                if (window.google && window.google.maps) {
+                    initMap();
+                    clearInterval(interval);
+                }
+            }, 100);
+            return () => clearInterval(interval);
+        }
+    }, [mounted, onMapClick]); // Removed onMapClick from deps if it destabilizes, but needed for listener
+
+
+    // Handle User Marker (Keep existing logic)
     useEffect(() => {
         const updateUserMarker = async () => {
             if (!mapReady || !mapInstanceRef.current || !window.google || !userLocation) return;
-
             const { Marker } = await google.maps.importLibrary("marker") as any;
-
             if (!userMarkerRef.current) {
                 userMarkerRef.current = new Marker({
                     position: userLocation,
@@ -105,7 +156,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 8,
-                        fillColor: '#3b82f6', // Blue-500
+                        fillColor: '#3b82f6',
                         fillOpacity: 1,
                         strokeColor: '#ffffff',
                         strokeWeight: 2,
@@ -113,8 +164,6 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                     title: t('my_location'),
                     zIndex: 100
                 });
-
-                // Add a pulse effect circle
                 userPulseMarkerRef.current = new Marker({
                     position: userLocation,
                     map: mapInstanceRef.current,
@@ -137,56 +186,174 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
             }
         };
         updateUserMarker();
+        updateUserMarker();
     }, [userLocation, mounted, mapReady]);
 
-    // Handle Routes and Stops
+    // Map Click Handler
+    useEffect(() => {
+        if (!mapReady || !mapInstanceRef.current || !window.google) return;
+
+        const listener = mapInstanceRef.current.addListener('click', (e: any) => {
+            if (onMapClick && e.latLng) {
+                onMapClick(e.latLng.lat(), e.latLng.lng());
+            }
+        });
+
+        return () => {
+            if (window.google && window.google.maps) {
+                google.maps.event.removeListener(listener);
+            }
+        };
+    }, [mapReady, onMapClick]);
+
+    // Handle Routes, Stops AND Highlighted Path
     useEffect(() => {
         const renderMapObjects = async () => {
             if (!mapReady || !mapInstanceRef.current || !window.google) return;
 
-            // Load necessary libraries
             const { Marker } = await google.maps.importLibrary("marker") as any;
             const { Polyline } = await google.maps.importLibrary("maps") as any;
             const { LatLngBounds } = await google.maps.importLibrary("core") as any;
             const { InfoWindow } = await google.maps.importLibrary("maps") as any;
 
-            // Clear existing markers and polylines
+            // Clear ALL existing markers and polylines
             markersRef.current.forEach(marker => marker.setMap(null));
             markersRef.current = [];
             selectableMarkersRef.current.forEach(marker => marker.setMap(null));
             selectableMarkersRef.current = [];
             polylinesRef.current.forEach(polyline => polyline.setMap(null));
             polylinesRef.current = [];
+            pathPolylinesRef.current.forEach(polyline => polyline.setMap(null));
+            pathPolylinesRef.current = [];
+            selectedPointMarkersRef.current.forEach(marker => marker.setMap(null));
+            selectedPointMarkersRef.current = [];
 
-            // 1. Render Selectable Stops
-            if (selectableStops.length > 0) {
-                selectableStops.forEach(stop => {
-                    let lat: number | null = null;
-                    let lng: number | null = null;
+            // ==========================================
+            // CASE A: Visualizing a Path (Route Finding)
+            // ==========================================
+            if (highlightedPath) {
+                const bounds = new LatLngBounds();
 
-                    if (stop.location) {
-                        // Type assertion for flexibility since location can be string or object depending on serialization
-                        const loc = stop.location as any;
-                        if (loc.coordinates && Array.isArray(loc.coordinates)) {
-                            lng = loc.coordinates[0];
-                            lat = loc.coordinates[1];
-                        } else if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-                            lat = loc.lat;
-                            lng = loc.lng;
-                        }
-                    } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
-                        lat = (stop as any).lat;
-                        lng = (stop as any).lng;
+                // 1. Draw Path Segments
+                highlightedPath.segments.forEach(segment => {
+                    const pathCoords = segment.geometry;
+                    if (!pathCoords || pathCoords.length === 0) return;
+
+                    pathCoords.forEach(coord => bounds.extend(coord));
+
+                    const isWalk = segment.routeId === 'WALK';
+
+                    // Determine Color
+                    let strokeColor = '#94a3b8'; // SLATE-400 (Walk)
+                    if (!isWalk) {
+                        // Try to find route color
+                        const route = routes.find(r => r.id === segment.routeId); // Note: segment.routeId currently holds route NAME/NUMBER sometimes, or ID?
+                        // In NetworkGraph currently: routeId: route.id.
+                        strokeColor = route ? route.route_color : '#16a34a'; // Green fallback
                     }
 
-                    if (lat !== null && lng !== null) {
+                    const polyline = new Polyline({
+                        path: pathCoords,
+                        geodesic: true,
+                        strokeColor: strokeColor,
+                        strokeOpacity: isWalk ? 0.7 : 1.0,
+                        strokeWeight: isWalk ? 4 : 6,
+                        map: mapInstanceRef.current,
+                        icons: isWalk ? [{
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 2 },
+                            offset: '0',
+                            repeat: '10px'
+                        }] : [{
+                            icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+                            offset: '100%',
+                            repeat: '100px'
+                        }]
+                    });
+
+                    pathPolylinesRef.current.push(polyline);
+                });
+
+                // 2. Draw Start/End Markers
+                if (highlightedPath.segments.length > 0) {
+                    // Start
+                    const startSeg = highlightedPath.segments[0];
+                    if (startSeg.geometry.length > 0) {
+                        new Marker({
+                            position: startSeg.geometry[0],
+                            map: mapInstanceRef.current,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 6,
+                                fillColor: '#2563eb', // Blue
+                                fillOpacity: 1,
+                                strokeColor: 'white',
+                                strokeWeight: 2
+                            },
+                            title: 'Start',
+                            zIndex: 101
+                        });
+                    }
+                    // End
+                    const endSeg = highlightedPath.segments[highlightedPath.segments.length - 1];
+                    if (endSeg.geometry.length > 0) {
+                        new Marker({
+                            position: endSeg.geometry[endSeg.geometry.length - 1],
+                            map: mapInstanceRef.current,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 6,
+                                fillColor: '#dc2626', // Red
+                                fillOpacity: 1,
+                                strokeColor: 'white',
+                                strokeWeight: 2
+                            },
+                            title: 'End',
+                            zIndex: 101
+                        });
+                    }
+                }
+
+                // Fit Bounds to Path
+                if (!bounds.isEmpty()) {
+                    mapInstanceRef.current.fitBounds(bounds, 50); // 50px padding
+                }
+                return; // SKIP Case B if Path is highlighted
+            }
+
+
+            // ==========================================
+            // CASE B: Standard Route/Stop Visualization
+            // ==========================================
+
+            // 1. Render Selectable Stops (from Near Me or Search)
+            if (selectableStops.length > 0) {
+                selectableStops.forEach(stop => {
+                    let lat, lng;
+                    if (stop.location) {
+                        const loc = stop.location as any;
+                        if (loc.coordinates && Array.isArray(loc.coordinates)) {
+                            lng = loc.coordinates[0]; lat = loc.coordinates[1];
+                        }
+                    }
+                    // Fallback handled in prev logic, simplifying here for brevity or keeping logic? 
+                    // Let's keep existing safe logic...
+                    if (!lat && !lng) {
+                        // re-implement check
+                        if (stop.location) {
+                            const loc = stop.location as any;
+                            if (loc.coordinates) { lng = loc.coordinates[0]; lat = loc.coordinates[1]; }
+                            else if (typeof loc.lat === 'number') { lat = loc.lat; lng = loc.lng; }
+                        }
+                    }
+
+                    if (lat && lng) {
                         const marker = new Marker({
                             position: { lat, lng },
                             map: mapInstanceRef.current,
                             icon: {
                                 path: google.maps.SymbolPath.CIRCLE,
                                 scale: 6,
-                                fillColor: '#334155', // Slate-700
+                                fillColor: '#334155',
                                 fillOpacity: 0.9,
                                 strokeColor: '#ffffff',
                                 strokeWeight: 2,
@@ -194,22 +361,14 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                             title: stop.stop_name,
                             zIndex: 1
                         });
-
-                        if (onStopSelect) {
-                            marker.addListener('click', () => {
-                                onStopSelect(stop.id);
-                            });
-                        }
-
+                        if (onStopSelect) marker.addListener('click', () => onStopSelect(stop.id));
                         selectableMarkersRef.current.push(marker);
                     }
                 });
             }
 
             // 2. Render Routes
-            if (routes.length === 0 && selectableStops.length === 0) {
-                return;
-            }
+            if (routes.length === 0 && selectableStops.length === 0) return;
 
             const bounds = new LatLngBounds();
             let hasRoutePoints = false;
@@ -222,30 +381,19 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
 
                 stops.forEach((rs, index) => {
                     const stop = rs.stops;
-                    let lat: number | null = null;
-                    let lng: number | null = null;
-
+                    let lat, lng;
                     if (stop.location) {
                         const loc = stop.location as any;
-                        if (loc.coordinates && Array.isArray(loc.coordinates)) {
-                            lng = loc.coordinates[0];
-                            lat = loc.coordinates[1];
-                        } else if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-                            lat = loc.lat;
-                            lng = loc.lng;
-                        }
-                    } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
-                        lat = (stop as any).lat;
-                        lng = (stop as any).lng;
+                        if (loc.coordinates) { lng = loc.coordinates[0]; lat = loc.coordinates[1]; }
+                        else if (typeof loc.lat === 'number') { lat = loc.lat; lng = loc.lng; }
                     }
 
-                    if (lat !== null && lng !== null) {
+                    if (lat && lng) {
                         const position = { lat, lng };
                         pathCoordinates.push(position);
                         bounds.extend(position);
                         hasRoutePoints = true;
 
-                        // Add path coordinates (waypoints)
                         if (rs.path_coordinates && Array.isArray(rs.path_coordinates)) {
                             rs.path_coordinates.forEach(coord => {
                                 pathCoordinates.push(coord);
@@ -253,16 +401,10 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                             });
                         }
 
-                        // Create Marker
                         const marker = new Marker({
                             position: position,
                             map: mapInstanceRef.current,
-                            label: {
-                                text: `${index + 1}`,
-                                color: 'white',
-                                fontWeight: 'bold',
-                                fontSize: '10px'
-                            },
+                            label: { text: `${index + 1}`, color: 'white', fontWeight: 'bold', fontSize: '10px' },
                             icon: {
                                 path: google.maps.SymbolPath.CIRCLE,
                                 scale: 10,
@@ -276,24 +418,19 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                         });
 
                         const infoWindow = new InfoWindow({
-                            content: `
-                                <div style="padding: 8px;">
-                                    <div style="font-size: 12px; color: #64748b; margin-bottom: 2px;">${route.route_number}</div>
-                                    <strong style="font-size: 14px; color: #1e293b;">${stop.stop_name}</strong>
-                                    ${stop.stop_name_en ? `<div style="font-size: 12px; color: #64748b; margin-top: 4px;">${stop.stop_name_en}</div>` : ''}
-                                </div>
-                            `
+                            content: `<div style="padding:8px;"><strong style="font-size:14px;">${stop.stop_name}</strong></div>`
                         });
-
                         marker.addListener('click', () => {
-                            infoWindow.open(mapInstanceRef.current, marker);
+                            if (onStopSelect) {
+                                onStopSelect(stop.id);
+                            } else {
+                                infoWindow.open(mapInstanceRef.current, marker);
+                            }
                         });
-
                         markersRef.current.push(marker);
                     }
                 });
 
-                // Create Polyline
                 if (pathCoordinates.length > 0) {
                     const polyline = new Polyline({
                         path: pathCoordinates,
@@ -302,17 +439,12 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                         strokeOpacity: 0.8,
                         strokeWeight: 4,
                         map: mapInstanceRef.current,
-                        icons: [{
-                            icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
-                            offset: '100%',
-                            repeat: '100px'
-                        }]
+                        icons: [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW }, offset: '100%', repeat: '100px' }]
                     });
                     polylinesRef.current.push(polyline);
                 }
             });
 
-            // Add selectable stops to bounds if no route points
             if (!hasRoutePoints && selectableMarkersRef.current.length > 0) {
                 selectableMarkersRef.current.forEach(marker => {
                     const pos = marker.getPosition();
@@ -320,62 +452,106 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                 });
             }
 
-            // Generate a unique signature for the current routes to avoid redundant re-fits
             const currentRoutesId = routes.map(r => r.id).sort().join(',');
-
-            // Only fit bounds if the route set has actually changed
+            // If just navigating map, don't keep refitting if content is same
+            // BUT if path is highlighted, we returned early.
+            // If we are here, we are in exploration mode.
             if (boundsRef.current !== currentRoutesId && !bounds.isEmpty()) {
                 mapInstanceRef.current.fitBounds(bounds);
                 boundsRef.current = currentRoutesId;
             }
+
+            // 3. Draw Selected Start/End Markers (if NO path highlighted)
+            if (!highlightedPath) {
+                console.log('RouteMap: Drawing Start/End Markers. Start:', startStop?.stop_name, 'End:', endStop?.stop_name);
+
+                let Marker = markerLibRef.current;
+                if (!Marker) {
+                    if (window.google?.maps?.Marker) {
+                        Marker = window.google.maps.Marker;
+                    } else {
+                        const lib = await google.maps.importLibrary("marker") as any;
+                        Marker = lib.Marker;
+                        markerLibRef.current = Marker;
+                    }
+                }
+
+                // Start Marker
+                if (startStop) {
+                    let lat, lng;
+                    if (startStop.location) {
+                        const loc = startStop.location as any;
+                        if (loc.coordinates) { lng = loc.coordinates[0]; lat = loc.coordinates[1]; }
+                    }
+                    console.log('RouteMap: Draw Start at', lat, lng);
+
+                    if (lat && lng) {
+                        const marker = new Marker({
+                            position: { lat, lng },
+                            map: mapInstanceRef.current,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 6,
+                                fillColor: '#2563eb', // Blue
+                                fillOpacity: 1,
+                                strokeColor: 'white',
+                                strokeWeight: 2
+                            },
+                            title: 'Start',
+                            zIndex: 200
+                        });
+                        selectedPointMarkersRef.current.push(marker);
+                    }
+                }
+
+                // End Marker
+                if (endStop) {
+                    let lat, lng;
+                    if (endStop.location) {
+                        const loc = endStop.location as any;
+                        if (loc.coordinates) { lng = loc.coordinates[0]; lat = loc.coordinates[1]; }
+                    }
+                    console.log('RouteMap: Draw End at', lat, lng);
+
+                    if (lat && lng) {
+                        const marker = new Marker({
+                            position: { lat, lng },
+                            map: mapInstanceRef.current,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 6,
+                                fillColor: '#dc2626', // Red
+                                fillOpacity: 1,
+                                strokeColor: 'white',
+                                strokeWeight: 2
+                            },
+                            title: 'End',
+                            zIndex: 200
+                        });
+                        selectedPointMarkersRef.current.push(marker);
+                    }
+                }
+            }
         };
         renderMapObjects();
 
-    }, [routes, stopsByRoute, selectableStops, mounted, mapReady]);
+    }, [routes, stopsByRoute, selectableStops, mounted, mapReady, highlightedPath, startStop, endStop]);
 
     const handleMyLocationClick = () => {
-        if (!navigator.geolocation) {
-            alert('이 브라우저에서는 위치 서비스를 지원하지 않습니다.');
-            return;
-        }
-
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 15000, // Increased to 15s
-            maximumAge: 30000 // Allow cached position up to 30s
-        };
-
-        const success = (position: GeolocationPosition) => {
-            const pos = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-            };
-            setUserLocation(pos);
-            if (mapInstanceRef.current) {
-                console.log('Moving map to user location:', pos);
-                mapInstanceRef.current.setCenter(pos);
-                mapInstanceRef.current.setZoom(17);
-            }
-        };
-
-        const error = (err: GeolocationPositionError) => {
-            console.warn('Geolocation error:', err);
-            let message = '위치 정보를 가져올 수 없습니다.';
-            switch (err.code) {
-                case err.PERMISSION_DENIED:
-                    message = '위치 정보 제공이 차단되어 있습니다. 브라우저 설정에서 허용해주세요.';
-                    break;
-                case err.POSITION_UNAVAILABLE:
-                    message = '위치 정보를 사용할 수 없습니다.';
-                    break;
-                case err.TIMEOUT:
-                    message = '위치 정보 요청 시간이 초과되었습니다.';
-                    break;
-            }
-            alert(message);
-        };
-
-        navigator.geolocation.getCurrentPosition(success, error, options);
+        if (!navigator.geolocation) return;
+        const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 };
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                setUserLocation(pos);
+                if (mapInstanceRef.current) {
+                    mapInstanceRef.current.setCenter(pos);
+                    mapInstanceRef.current.setZoom(17);
+                }
+            },
+            (err) => console.warn(err),
+            options
+        );
         if (onMyLocationClick) onMyLocationClick();
     };
 
@@ -386,8 +562,6 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
     return (
         <div className="w-full h-96 rounded-xl border border-slate-200 overflow-hidden shadow-md relative">
             <div ref={mapRef} className="w-full h-full" />
-
-            {/* My Location Button */}
             <button
                 onClick={handleMyLocationClick}
                 className="absolute bottom-24 right-4 bg-white p-3 rounded-full shadow-lg hover:bg-slate-50 transition-colors z-10 text-slate-700"

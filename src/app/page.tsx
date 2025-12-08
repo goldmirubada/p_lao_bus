@@ -1,19 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Route, Stop, RouteStop } from '@/lib/supabase/types';
 import { decryptData } from '@/lib/encryption';
 import { getSecureKeyFromWasm } from '@/lib/wasm-loader';
-import { MapPin, Navigation as NavigationIcon, Info, Star, AlertTriangle } from 'lucide-react';
+import { MapPin, Navigation as NavigationIcon, Info, Star, AlertTriangle, CarFront, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import React, { useMemo } from 'react';
 import GoogleMapsWrapper from '@/components/admin/GoogleMapsWrapper';
 import LanguageSwitcher from '@/components/shared/LanguageSwitcher';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useGeolocation } from '@/hooks/useGeolocation';
-
 import { useStopAlarm } from '@/hooks/useStopAlarm';
 import NearMePanel from '@/components/user/NearMePanel';
 import Search from '@/components/user/Search';
@@ -22,6 +20,10 @@ import LoginButton from '@/components/auth/LoginButton';
 import FeedbackModal from '@/components/user/FeedbackModal';
 import { ROUTE_FARES, formatFare } from '@/constants/fares';
 import Footer from '@/components/layout/Footer';
+import { NetworkGraph } from '@/lib/graph/NetworkGraph';
+import { PathResult } from '@/lib/graph/types';
+import RouteFindingPanel from '@/components/user/RouteFindingPanel';
+import { calculateDistance } from '@/lib/graph/geoUtils';
 
 const RouteMap = dynamic(() => import('@/components/user/RouteMap'), { ssr: false });
 
@@ -36,6 +38,15 @@ export default function SchematicMap() {
   const [selectedRoute, setSelectedRoute] = useState<string>('all');
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
   const [isNearMeOpen, setIsNearMeOpen] = useState(false);
+  const [isRouteFinderOpen, setIsRouteFinderOpen] = useState(false); // Route Finder State
+  const [startRoutePoint, setStartRoutePoint] = useState<Stop | 'current'>('current');
+  const [endRoutePoint, setEndRoutePoint] = useState<Stop | null>(null);
+  const [currentPath, setCurrentPath] = useState<PathResult | null>(null); // Path Result State
+
+  // Route Finding Map Selection
+  const [selectingRoutePoint, setSelectingRoutePoint] = useState<'start' | 'end' | null>(null);
+  const [mapSelectedStop, setMapSelectedStop] = useState<Stop | null>(null);
+
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [user, setUser] = useState<any>(null); // For auth check
 
@@ -44,6 +55,9 @@ export default function SchematicMap() {
   const { t } = useLanguage();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { location: userLocation, loading: locationLoading, error: locationError } = useGeolocation();
+
+  // Initialize Graph Engine
+  const graphEngine = useMemo(() => new NetworkGraph(), []);
 
   const {
     targetStop: alarmTargetStop,
@@ -90,8 +104,7 @@ export default function SchematicMap() {
     try {
       setLoading(true);
 
-      // Fetch Encrypted Map Data from API
-      // Mobile App needs absolute URL (env), Web uses relative path (empty string)
+      // Fetch Encrypted Map Data
       const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
       const response = await fetch(`${apiBase}/api/map-data`, { cache: 'no-store' });
 
@@ -102,12 +115,9 @@ export default function SchematicMap() {
       }
 
       const { payload } = await response.json();
+      if (!payload) throw new Error('No payload received');
 
-      if (!payload) {
-        throw new Error('No payload received');
-      }
-
-      // 1. Get Secret Key from WASM (Hidden)
+      // 1. Get Secret Key
       let secretKey = '';
       try {
         secretKey = await getSecureKeyFromWasm();
@@ -116,29 +126,31 @@ export default function SchematicMap() {
         throw new Error('Security Module Error');
       }
 
-      // 2. Decrypt the data using the WASM key
+      // 2. Decrypt
       const decryptedData = decryptData(payload, secretKey);
-
-      if (!decryptedData) {
-        throw new Error('Decryption failed');
-      }
+      if (!decryptedData) throw new Error('Decryption failed');
 
       const { routes: routesData, routeStops: stopsData } = decryptedData;
 
+      // Build Graph
+      if (routesData && stopsData) {
+        console.time('GraphBuild');
+        graphEngine.buildGraph(routesData, stopsData);
+        console.timeEnd('GraphBuild');
+      }
+
       if (routesData) {
         setRoutes(routesData);
-        // Offline Support: Save routes to localStorage
         localStorage.setItem('cached_routes', JSON.stringify(routesData));
       }
 
       if (stopsData) {
         setRouteStops(stopsData);
-        // Offline Support: Save stops to localStorage
         localStorage.setItem('cached_stop_data', JSON.stringify(stopsData));
       }
+
     } catch (error) {
       console.error('Error fetching data:', error);
-
       // Offline Support: Load from localStorage on error
       const cachedRoutes = localStorage.getItem('cached_routes');
       const cachedStops = localStorage.getItem('cached_stop_data');
@@ -148,7 +160,6 @@ export default function SchematicMap() {
         setRouteStops(JSON.parse(cachedStops));
         console.log('Loaded data from offline cache');
       }
-
     } finally {
       setLoading(false);
     }
@@ -183,7 +194,15 @@ export default function SchematicMap() {
                 <p className="text-xs sm:text-sm text-slate-500">Laos Bus Route Map</p>
               </div>
             </div>
+
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsRouteFinderOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors"
+              >
+                <CarFront size={18} />
+                <span className="hidden sm:inline">{t('find_route') || "길찾기"}</span>
+              </button>
               <LanguageSwitcher />
             </div>
           </div>
@@ -428,21 +447,109 @@ export default function SchematicMap() {
 
                 {/* Google Maps Route Display */}
                 <div className="relative flex-1 min-h-[400px] mb-6 rounded-xl overflow-hidden shadow-inner border border-slate-100">
-                  <GoogleMapsWrapper>
-                    <RouteMap
-                      routes={filteredRoutes}
-                      stopsByRoute={routeStops}
-                      onStopSelect={(stopId) => {
-                        // Find the stop object from all stops
-                        let foundStop: Stop | null = null;
-                        Object.values(routeStops).flat().forEach(rs => {
-                          if (rs.stops.id === stopId) foundStop = rs.stops;
-                        });
-                        if (foundStop) setSelectedStop(foundStop);
-                      }}
-                      onMyLocationClick={() => setIsNearMeOpen(true)}
-                    />
-                  </GoogleMapsWrapper>
+                  {/* Map Selection Banner */}
+                  {selectingRoutePoint && (
+                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full shadow-lg z-[60] animate-bounce flex items-center gap-2">
+                      <MapPin size={16} className="text-yellow-400" />
+                      <span className="font-bold text-sm">
+                        {selectingRoutePoint === 'start'
+                          ? (t('select_start_on_map' as any) || 'Select Start')
+                          : (t('select_end_on_map' as any) || 'Select End')}
+                      </span>
+                      <button
+                        onClick={() => setSelectingRoutePoint(null)}
+                        className="ml-2 bg-white/20 hover:bg-white/30 rounded-full p-0.5"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Main Content */}
+                  <div className="relative w-full h-full">
+                    <GoogleMapsWrapper>
+                      <RouteMap
+                        routes={filteredRoutes}
+                        stopsByRoute={routeStops}
+                        highlightedPath={currentPath}
+                        onStopSelect={(stopId) => {
+                          // Find the stop object
+                          let foundStop: Stop | null = null;
+                          Object.values(routeStops).flat().forEach(rs => {
+                            if (rs.stops.id === stopId) foundStop = rs.stops;
+                          });
+
+                          if (foundStop) {
+                            if (selectingRoutePoint === 'start') {
+                              setStartRoutePoint(foundStop);
+                              setSelectingRoutePoint(null);
+                              setIsRouteFinderOpen(true);
+                            } else if (selectingRoutePoint === 'end') {
+                              setEndRoutePoint(foundStop);
+                              setSelectingRoutePoint(null);
+                              setIsRouteFinderOpen(true);
+                            } else {
+                              // Normal Stop Selection
+                              setSelectedStop(foundStop);
+                            }
+                          }
+                        }}
+                        onMyLocationClick={() => setIsNearMeOpen(true)}
+                        onMapClick={(lat, lng) => {
+                          if (selectingRoutePoint) {
+                            // Find nearest stop
+                            let nearestStop: Stop | null = null;
+                            let minDist = Infinity;
+
+                            allUniqueStops.forEach(stop => {
+                              let sLat, sLng;
+                              if (stop.location) {
+                                const loc = stop.location as any;
+                                if (loc.coordinates) { sLng = loc.coordinates[0]; sLat = loc.coordinates[1]; }
+                              }
+
+                              if (sLat && sLng) {
+                                const dist = calculateDistance({ lat, lng }, { lat: sLat, lng: sLng });
+                                if (dist < minDist) {
+                                  minDist = dist;
+                                  nearestStop = stop;
+                                }
+                              }
+                            });
+
+                            let finalPoint: Stop;
+
+                            // Threshold: 100m (0.1km)
+                            if (nearestStop && minDist < 0.1) {
+                              finalPoint = nearestStop;
+                            } else {
+                              // Create Custom Location
+                              finalPoint = {
+                                id: `custom_${Date.now()}`,
+                                stop_name: t('custom_location' as any) || 'Custom Location',
+                                stop_name_en: 'Custom Location',
+                                location: { type: 'Point', coordinates: [lng, lat] },
+                                schematic_x: null,
+                                schematic_y: null,
+                                image_url: null,
+                                description: null,
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                              } as unknown as Stop;
+                            }
+
+                            if (selectingRoutePoint === 'start') setStartRoutePoint(finalPoint);
+                            else if (selectingRoutePoint === 'end') setEndRoutePoint(finalPoint);
+
+                            setSelectingRoutePoint(null);
+                            setIsRouteFinderOpen(true);
+                          }
+                        }}
+                        startStop={startRoutePoint === 'current' ? null : startRoutePoint}
+                        endStop={endRoutePoint}
+                      />
+                    </GoogleMapsWrapper>
+                  </div>
                 </div>
 
                 {/* Schematic Route Display (Only for single route) */}
@@ -618,24 +725,24 @@ export default function SchematicMap() {
         user={user}
       />
 
-      {/* Debug Panel - Temporary */}
-      <div className="fixed top-20 left-4 z-50 bg-black/80 text-green-400 p-2 rounded text-xs font-mono select-text pointer-events-auto max-w-[200px] overflow-hidden">
-        <details>
-          <summary className="cursor-pointer font-bold">🛠 Debug Info</summary>
-          <div className="mt-2 space-y-1">
-            <p>GPS: {userLocation ? `${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}` : 'null'}</p>
-            <p>Acc: {userLocation ? `${Math.round(userLocation.accuracy)}m` : 'N/A'}</p>
-            <p className="text-red-400">Err: {locationError || 'None'}</p>
-            <p>Notif: {'Notification' in window ? Notification.permission : 'Not Supported'}</p>
-            <p>Vib: {typeof navigator !== 'undefined' && 'vibrate' in navigator ? 'Yes' : 'No'}</p>
-            <p>Alarm: {isAlarmActive ? 'Active' : 'Off'}</p>
-            <p>Time: {new Date().toLocaleTimeString()}</p>
-            <div className="pt-2 border-t border-gray-600 break-words text-[10px] opacity-70">
-              {navigator.userAgent.slice(0, 50)}...
-            </div>
-          </div>
-        </details>
-      </div>
-    </div >
+      {/* Route Finding Panel */}
+      <RouteFindingPanel
+        isOpen={isRouteFinderOpen}
+        onClose={() => {
+          setIsRouteFinderOpen(false);
+          setSelectingRoutePoint(null);
+        }}
+        userLocation={userLocation as any}
+        stops={allUniqueStops}
+        graphEngine={graphEngine}
+        onPathFound={(path) => setCurrentPath(path)}
+        onSelectOnMap={(type) => setSelectingRoutePoint(type)}
+        selectingType={selectingRoutePoint}
+        startPoint={startRoutePoint}
+        setStartPoint={setStartRoutePoint}
+        endPoint={endRoutePoint}
+        setEndPoint={setEndRoutePoint}
+      />
+    </div>
   );
 }

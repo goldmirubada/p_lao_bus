@@ -1,13 +1,13 @@
 
-import loader from "@assemblyscript/loader";
+import * as loader from "@assemblyscript/loader";
 
 interface WasmExports {
     getSecretKey(): number; // Returns pointer to string
 }
 
-let wasmModule: loader.ASUtil & WasmExports | null = null;
+let wasmModule: any = null;
 
-export const loadWasmModule = async (): Promise<loader.ASUtil & WasmExports> => {
+export const loadWasmModule = async (): Promise<any> => {
     if (wasmModule) return wasmModule;
 
     try {
@@ -18,7 +18,8 @@ export const loadWasmModule = async (): Promise<loader.ASUtil & WasmExports> => 
         const arrayBuffer = await response.arrayBuffer();
 
         // Instantiate using the loader to get string management utilities (__getString)
-        const module = await loader.instantiate<WasmExports>(arrayBuffer, {});
+        // @ts-ignore - Loader type mismatch workaround
+        const module = await (loader as any).instantiate(arrayBuffer, {});
 
         wasmModule = module.exports;
         return wasmModule!;
