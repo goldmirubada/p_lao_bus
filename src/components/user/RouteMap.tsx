@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Route, Stop } from '@/lib/supabase/types';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // Type declaration for Google Maps
 declare global {
@@ -25,6 +26,7 @@ interface RouteMapProps {
 const DEFAULT_STOPS: Stop[] = [];
 
 export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAULT_STOPS, onStopSelect }: RouteMapProps) {
+    const { t } = useLanguage();
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
     const userMarkerRef = useRef<google.maps.Marker | null>(null);
     const userPulseMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -98,7 +100,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
                     strokeColor: '#ffffff',
                     strokeWeight: 2,
                 },
-                title: '내 위치',
+                title: t('my_location'),
                 zIndex: 100
             });
 
@@ -358,7 +360,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
             <button
                 onClick={handleMyLocationClick}
                 className="absolute bottom-24 right-4 bg-white p-3 rounded-full shadow-lg hover:bg-slate-50 transition-colors z-10 text-slate-700"
-                title="내 위치"
+                title={t('my_location')}
             >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
