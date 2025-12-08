@@ -13,6 +13,7 @@ import { useFavorites } from '@/hooks/useFavorites';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useStopAlarm } from '@/hooks/useStopAlarm';
 import NearMePanel from '@/components/user/NearMePanel';
+import Search from '@/components/user/Search';
 import { ROUTE_FARES, formatFare } from '@/constants/fares';
 
 const RouteMap = dynamic(() => import('@/components/user/RouteMap'), { ssr: false });
@@ -205,7 +206,22 @@ export default function SchematicMap() {
               {/* Left: Route Selection */}
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-xl shadow-lg p-6 sticky top-6 z-20">
-                  <div className="flex items-center justify-between mb-4">
+                  {/* Search Component */}
+                  <Search
+                    routes={routes}
+                    stops={allUniqueStops}
+                    onRouteSelect={(routeId) => setSelectedRoute(routeId)}
+                    onStopSelect={(stop) => {
+                      setSelectedStop(stop);
+                      // If stop is part of a route, maybe we should select that route? 
+                      // For now just showing the stop modal and centering is good.
+                      // Center map on stop? The modal has a "Directions" button but maybe we should center it.
+                      // Actually page.tsx doesn't expose a way to center map from here easily without state.
+                      // But selecting the stop opens the modal, which is good enough interaction.
+                    }}
+                  />
+
+                  <div className="flex items-center justify-between mb-4 mt-2">
                     <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                       <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
                       {t('select_route')}

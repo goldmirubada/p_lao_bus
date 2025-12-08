@@ -30,13 +30,13 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect,
     const defaultCenter = { lat: 17.9757, lng: 102.6331 };
 
     const getCurrentLocation = () => {
-        if (!navigator.geolocation || !map) return;
+        if (!navigator.geolocation || !map || !window.google?.maps) return;
 
         setIsLoadingLocation(true);
         setLocationStatus('위치 확인 중...');
 
         navigator.geolocation.getCurrentPosition(
-            (position) => {
+            async (position) => {
                 const currentPos = {
                     lat: position.coords.latitude,
                     lng: position.coords.longitude
@@ -51,22 +51,29 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect,
                     currentLocationMarkerRef.current.setMap(null);
                 }
 
-                // Add blue marker for current location
-                const currentMarker = new google.maps.Marker({
-                    position: currentPos,
-                    map: map,
-                    icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: 8,
-                        fillColor: '#4285F4',
-                        fillOpacity: 1,
-                        strokeColor: '#ffffff',
-                        strokeWeight: 2,
-                    },
-                    title: '현재 위치'
-                });
-                currentLocationMarkerRef.current = currentMarker;
-                setLocationStatus('현재 위치 표시됨');
+                try {
+                    const { Marker } = await window.google.maps.importLibrary("marker") as any;
+
+                    // Add blue marker for current location
+                    const currentMarker = new Marker({
+                        position: currentPos,
+                        map: map,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 8,
+                            fillColor: '#4285F4', // Blue-500
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 2,
+                        },
+                        title: '현재 위치'
+                    });
+                    currentLocationMarkerRef.current = currentMarker;
+                    setLocationStatus('현재 위치 표시됨');
+                } catch (e) {
+                    console.error("Error creating current location marker", e);
+                }
+
                 setIsLoadingLocation(false);
 
                 // Auto-hide status after 2 seconds
@@ -87,156 +94,193 @@ export default function GPSMapPicker({ initialLat, initialLng, onLocationSelect,
     };
 
     useEffect(() => {
-        if (!mapRef.current || !window.google) return;
+        if (!mapRef.current) return;
 
-        const initialCenter = initialLat && initialLng
-            ? { lat: initialLat, lng: initialLng }
-            : defaultCenter;
+        const initMap = async () => {
+            // Wait for google maps to be available
+            if (!window.google?.maps) return;
 
-        const newMap = new google.maps.Map(mapRef.current, {
-            center: initialCenter,
-            zoom: initialLat && initialLng ? 14 : 12,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false,
-            zoomControl: true,
-        });
+            try {
+                // Use importLibrary to ensure the maps library is loaded
+                const { Map } = await window.google.maps.importLibrary("maps") as any;
+                const { Marker } = await window.google.maps.importLibrary("marker") as any;
 
-        setMap(newMap);
+                const initialCenter = initialLat && initialLng
+                    ? { lat: initialLat, lng: initialLng }
+                    : defaultCenter;
 
-        // Initial marker if coordinates exist
-        if (initialLat && initialLng) {
-            const newMarker = new google.maps.Marker({
-                position: { lat: initialLat, lng: initialLng },
-                map: newMap,
-                draggable: true,
-                title: '선택된 위치'
-            });
-            markerRef.current = newMarker;
+                const newMap = new Map(mapRef.current, {
+                    center: initialCenter,
+                    zoom: initialLat && initialLng ? 14 : 12,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                    zoomControl: true,
+                    mapId: "DEMO_MAP_ID", // Required for some features
+                });
 
-            // Drag end listener
-            newMarker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
-                if (e.latLng) {
-                    onLocationSelect(e.latLng.lat(), e.latLng.lng());
+                setMap(newMap);
+
+                // Initial marker if coordinates exist
+                if (initialLat && initialLng) {
+                    const newMarker = new Marker({
+                        position: { lat: initialLat, lng: initialLng },
+                        map: newMap,
+                        draggable: true,
+                        title: '선택된 위치'
+                    });
+                    markerRef.current = newMarker;
+
+                    // Drag end listener
+                    newMarker.addListener('dragend', (e: any) => {
+                        if (e.latLng) {
+                            onLocationSelect(e.latLng.lat(), e.latLng.lng());
+                        }
+                    });
                 }
-            });
-        }
 
-        // Map click listener
-        newMap.addListener('click', (e: google.maps.MapMouseEvent) => {
-            if (!e.latLng) return;
+                // Map click listener
+                newMap.addListener('click', (e: any) => {
+                    if (!e.latLng) return;
 
-            const lat = e.latLng.lat();
-            const lng = e.latLng.lng();
+                    const lat = e.latLng.lat();
+                    const lng = e.latLng.lng();
 
-            onLocationSelect(lat, lng);
+                    onLocationSelect(lat, lng);
 
-            // Remove existing marker first
-            if (markerRef.current) {
-                markerRef.current.setMap(null);
+                    // Remove existing marker first
+                    if (markerRef.current) {
+                        markerRef.current.setMap(null);
+                    }
+
+                    // Create new marker at clicked position
+                    const newMarker = new Marker({
+                        position: { lat, lng },
+                        map: newMap,
+                        draggable: true,
+                        title: '선택된 위치'
+                    });
+                    markerRef.current = newMarker;
+
+                    // Add drag end listener to new marker
+                    newMarker.addListener('dragend', (dragEvent: any) => {
+                        if (dragEvent.latLng) {
+                            onLocationSelect(dragEvent.latLng.lat(), dragEvent.latLng.lng());
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error("Error initializing Google Maps:", error);
             }
+        };
 
-            // Create new marker at clicked position
-            const newMarker = new google.maps.Marker({
-                position: { lat, lng },
-                map: newMap,
-                draggable: true,
-                title: '선택된 위치'
-            });
-            markerRef.current = newMarker;
-
-            // Add drag end listener to new marker
-            newMarker.addListener('dragend', (dragEvent: google.maps.MapMouseEvent) => {
-                if (dragEvent.latLng) {
-                    onLocationSelect(dragEvent.latLng.lat(), dragEvent.latLng.lng());
-                }
-            });
-        });
+        if (window.google?.maps) {
+            initMap();
+        }
 
     }, [mapRef]); // Run once on mount
 
     useEffect(() => {
         if (!map) return;
 
-        // Clear existing other markers
-        otherMarkersRef.current.forEach(marker => marker.setMap(null));
-        otherMarkersRef.current = [];
+        const renderOtherStops = async () => {
+            if (!window.google?.maps) return;
 
-        // Add new markers for other stops
-        otherStops.forEach(stop => {
-            const marker = new google.maps.Marker({
-                position: { lat: stop.lat, lng: stop.lng },
-                map: map,
-                title: stop.name,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 6,
-                    fillColor: '#334155', // Slate-700
-                    fillOpacity: 0.9,
-                    strokeColor: '#ffffff',
-                    strokeWeight: 2,
-                },
-                clickable: true, // Allow clicking to see title/tooltip
-            });
-            otherMarkersRef.current.push(marker);
-        });
+            // Clear existing other markers
+            otherMarkersRef.current.forEach(marker => marker.setMap(null));
+            otherMarkersRef.current = [];
+
+            try {
+                const { Marker } = await window.google.maps.importLibrary("marker") as any;
+
+                // Add new markers for other stops
+                otherStops.forEach(stop => {
+                    const marker = new Marker({
+                        position: { lat: stop.lat, lng: stop.lng },
+                        map: map,
+                        title: stop.name,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 6,
+                            fillColor: '#334155', // Slate-700
+                            fillOpacity: 0.9,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 2,
+                        },
+                        clickable: true, // Allow clicking to see title/tooltip
+                    });
+                    otherMarkersRef.current.push(marker);
+                });
+            } catch (e) {
+                console.error("Error rendering other stops", e);
+            }
+        };
+
+        renderOtherStops();
 
     }, [map, otherStops]);
 
     // Initialize Autocomplete
     useEffect(() => {
-        if (map && inputRef.current && !autocompleteRef.current && window.google) {
-            const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-                fields: ["geometry", "name"],
-                types: ["establishment", "geocode"],
-            });
-            autocomplete.bindTo("bounds", map);
+        const initAutocomplete = async () => {
+            if (map && inputRef.current && !autocompleteRef.current && window.google?.maps) {
+                try {
+                    const { Autocomplete } = await window.google.maps.importLibrary("places") as any;
 
-            autocomplete.addListener("place_changed", () => {
-                const place = autocomplete.getPlace();
+                    const autocomplete = new Autocomplete(inputRef.current, {
+                        fields: ["geometry", "name"],
+                        types: ["establishment", "geocode"],
+                    });
+                    autocomplete.bindTo("bounds", map);
 
-                if (!place.geometry || !place.geometry.location) {
-                    // User entered the name of a Place that was not suggested and
-                    // pressed the Enter key, or the Place Details request failed.
-                    // window.alert("No details available for input: '" + place.name + "'");
-                    return;
+                    autocomplete.addListener("place_changed", async () => {
+                        const place = autocomplete.getPlace();
+
+                        if (!place.geometry || !place.geometry.location) {
+                            return;
+                        }
+
+                        if (place.geometry.viewport) {
+                            map.fitBounds(place.geometry.viewport);
+                        } else {
+                            map.setCenter(place.geometry.location);
+                            map.setZoom(17);
+                        }
+
+                        if (markerRef.current) {
+                            markerRef.current.setMap(null);
+                        }
+
+                        const lat = place.geometry.location.lat();
+                        const lng = place.geometry.location.lng();
+
+                        const { Marker } = await window.google.maps.importLibrary("marker") as any;
+                        const newMarker = new Marker({
+                            position: { lat, lng },
+                            map: map,
+                            draggable: true,
+                            title: place.name || '선택된 위치'
+                        });
+                        markerRef.current = newMarker;
+
+                        newMarker.addListener('dragend', (e: any) => {
+                            if (e.latLng) {
+                                onLocationSelect(e.latLng.lat(), e.latLng.lng());
+                            }
+                        });
+
+                        onLocationSelect(lat, lng);
+                    });
+
+                    autocompleteRef.current = autocomplete;
+                } catch (e) {
+                    console.error("Error initializing autocomplete", e);
                 }
+            }
+        };
 
-                // If the place has a geometry, then present it on a map.
-                if (place.geometry.viewport) {
-                    map.fitBounds(place.geometry.viewport);
-                } else {
-                    map.setCenter(place.geometry.location);
-                    map.setZoom(17);
-                }
-
-                // Update marker
-                if (markerRef.current) {
-                    markerRef.current.setMap(null);
-                }
-
-                const lat = place.geometry.location.lat();
-                const lng = place.geometry.location.lng();
-
-                const newMarker = new google.maps.Marker({
-                    position: { lat, lng },
-                    map: map,
-                    draggable: true,
-                    title: place.name || '선택된 위치'
-                });
-                markerRef.current = newMarker;
-
-                // Add drag end listener to new marker
-                newMarker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
-                    if (e.latLng) {
-                        onLocationSelect(e.latLng.lat(), e.latLng.lng());
-                    }
-                });
-
-                onLocationSelect(lat, lng);
-            });
-
-            autocompleteRef.current = autocomplete;
+        if (window.google?.maps) {
+            initAutocomplete();
         }
     }, [map]);
 
