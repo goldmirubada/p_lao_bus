@@ -39,7 +39,7 @@ export const translations = {
         alarm_set: '알림이 설정되었습니다.',
         alarm_cancelled: '알림이 해제되었습니다.',
         alarm_triggered: '목적지 도착!',
-        alarm_desc: '목적지 500m 전방입니다. 하차 준비를 해주세요.',
+        alarm_desc: '목적지 200m 전방입니다. 하차 준비를 해주세요.',
         stop_alarm_monitoring: '알림 모니터링 중...',
     },
     lo: {
@@ -68,7 +68,7 @@ export const translations = {
         alarm_set: 'ຕັ້ງການແຈ້ງເຕືອນແລ້ວ.',
         alarm_cancelled: 'ການແຈ້ງເຕືອນຖືກຍົກເລີກ.',
         alarm_triggered: 'ຮອດຈຸດໝາຍແລ້ວ!',
-        alarm_desc: 'ອີກ 500 ແມັດ ຈະຮອດຈຸດໝາຍ. ກະລຸນາກຽມຕົວລົງ.',
+        alarm_desc: 'ອີກ 200 ແມັດ ຈະຮອດຈຸດໝາຍ. ກະລຸນາກຽມຕົວລົງ.',
         stop_alarm_monitoring: 'ກຳລັງຕິດຕາມ...',
     },
     en: {
@@ -109,7 +109,7 @@ export const translations = {
         alarm_set: 'Alarm set.',
         alarm_cancelled: 'Alarm cancelled.',
         alarm_triggered: 'Arriving Soon!',
-        alarm_desc: 'You are within 500m of your destination.',
+        alarm_desc: 'You are within 200m of your destination.',
         stop_alarm_monitoring: 'Monitoring...',
     },
     cn: {
@@ -137,7 +137,7 @@ export const translations = {
         alarm_set: '提醒已设置。',
         alarm_cancelled: '提醒已取消。',
         alarm_triggered: '即将到达！',
-        alarm_desc: '距离目的地不到500米。',
+        alarm_desc: '距离目的地不到200米。',
         stop_alarm_monitoring: '监控中...',
     },
     th: {
@@ -178,7 +178,7 @@ export const translations = {
         alarm_set: 'ตั้งปลุกแล้ว',
         alarm_cancelled: 'ยกเลิกการปลุกแล้ว',
         alarm_triggered: 'ใกล้ถึงแล้ว!',
-        alarm_desc: 'คุณอยู่ห่างจากจุดหมายไม่เกิน 500 เมตร',
+        alarm_desc: 'คุณอยู่ห่างจากจุดหมายไม่เกิน 200 เมตร',
         stop_alarm_monitoring: 'กำลังติดตาม...',
     },
     vi: {
@@ -219,7 +219,7 @@ export const translations = {
         alarm_set: 'Đã đặt báo thức.',
         alarm_cancelled: 'Đã hủy báo thức.',
         alarm_triggered: 'Đến nơi sớm!',
-        alarm_desc: 'Bạn đang ở trong phạm vi 500m so với điểm đến.',
+        alarm_desc: 'Bạn đang ở trong phạm vi 200m so với điểm đến.',
         stop_alarm_monitoring: 'Đang theo dõi...',
     },
     km: {
@@ -260,7 +260,7 @@ export const translations = {
         alarm_set: 'បានកំណត់ម៉ោងរោទ៍។',
         alarm_cancelled: 'បានបោះបង់ការជូនដំណឹង។',
         alarm_triggered: 'ជិតដល់ហើយ!',
-        alarm_desc: 'អ្នកស្ថិតនៅក្នុងចម្ងាយ 500 ម៉ែត្រពីគោលដៅ។',
+        alarm_desc: 'អ្នកស្ថិតនៅក្នុងចម្ងាយ 200 ម៉ែត្រពីគោលដៅ។',
         stop_alarm_monitoring: 'កំពុងតាមដាន...',
     },
 };
