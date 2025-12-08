@@ -528,8 +528,6 @@ export default function SchematicMap() {
                 <button
                   onClick={() => {
                     // Extract lat/lng from PostGIS geography format
-                    // Format: POINT(lng lat)
-                    // We'll use the stored location to get coordinates
                     const lat = selectedStop.location
                       ? (selectedStop.location as any).coordinates?.[1]
                       : 17.9757; // Default to Vientiane
@@ -547,45 +545,33 @@ export default function SchematicMap() {
                   {t('directions')}
                 </button>
 
-                <div className="flex-1 flex gap-2">
-                  {/* Alarm Button */}
-                  <button
-                    onClick={() => {
-                      if (isAlarmActive && alarmTargetStop?.id === selectedStop.id) {
-                        cancelAlarm();
-                        alert(t('alarm_cancelled'));
-                      } else {
-                        setAlarm(selectedStop);
-                        alert(t('alarm_set'));
-                      }
-                    }}
-                    className={`flex-1 py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${isAlarmActive && alarmTargetStop?.id === selectedStop.id
-                      ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                  >
-                    {isAlarmActive && alarmTargetStop?.id === selectedStop.id ? (
-                      <>
-                        <span>🔕</span>
-                        {t('cancel_alarm')}
-                      </>
-                    ) : (
-                      <>
-                        <span>🔔</span>
-                        {t('set_alarm')}
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setSelectedStop(null)}
-                    className="bg-slate-100 text-slate-700 w-12 rounded-lg hover:bg-slate-200 transition-colors font-medium flex items-center justify-center"
-                  >
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    if (isAlarmActive && alarmTargetStop?.id === selectedStop.id) {
+                      cancelAlarm();
+                      alert(t('alarm_cancelled'));
+                    } else {
+                      setAlarm(selectedStop);
+                      alert(t('alarm_set'));
+                    }
+                  }}
+                  className={`flex-1 py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${isAlarmActive && alarmTargetStop?.id === selectedStop.id
+                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                >
+                  {isAlarmActive && alarmTargetStop?.id === selectedStop.id ? (
+                    <>
+                      <span>🔕</span>
+                      {t('cancel_alarm')}
+                    </>
+                  ) : (
+                    <>
+                      <span>🔔</span>
+                      {t('set_alarm')}
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
