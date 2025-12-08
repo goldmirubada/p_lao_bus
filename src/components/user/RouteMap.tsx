@@ -341,8 +341,8 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
 
         const options = {
             enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
+            timeout: 15000, // Increased to 15s
+            maximumAge: 30000 // Allow cached position up to 30s
         };
 
         const success = (position: GeolocationPosition) => {
