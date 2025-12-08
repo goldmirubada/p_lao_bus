@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ReactNode, useEffect, useState } from 'react';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useRouter, usePathname } from 'next/navigation';
-import { LogOut, LayoutDashboard, Map, MapPin, Edit3, Bus, Menu, X } from 'lucide-react';
+import { LogOut, LayoutDashboard, Map, MapPin, Edit3, Bus, Menu, X, MessageSquare } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
     const { user, loading, signOut } = useAuth();
@@ -31,6 +31,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         { href: '/admin/routes', label: '노선 관리', icon: Bus },
         { href: '/admin/stops', label: '정류장 관리', icon: MapPin },
         { href: '/admin/route-stops', label: '노선-정류장 편집', icon: Edit3 },
+        { href: '/admin/feedback', label: '제보 관리', icon: MessageSquare },
     ];
 
     return (

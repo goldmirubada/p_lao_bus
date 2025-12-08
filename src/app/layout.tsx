@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/shared/AuthProvider";
@@ -18,22 +18,18 @@ export const metadata: Metadata = {
   title: "Lao Bus Info",
   description: "Vientiane Bus Route Information",
   manifest: "/manifest.json",
-  themeColor: "#3b82f6",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "LaoBus",
-  },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false, // Prevent zooming on mobile for app-like feel
-  },
   icons: {
     icon: "/icons/icon-192x192.png",
     apple: "/icons/icon-192x192.png",
   }
+};
+
+export const viewport: Viewport = {
+  themeColor: "#3b82f6",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

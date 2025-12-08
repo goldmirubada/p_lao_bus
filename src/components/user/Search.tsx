@@ -100,7 +100,7 @@ export default function Search({ routes, stops, onRouteSelect, onStopSelect }: S
                     {/* No Results */}
                     {filteredResults.routes.length === 0 && filteredResults.stops.length === 0 && (
                         <div className="p-4 text-center text-slate-500 text-sm">
-                            검색 결과가 없습니다.
+                            {t('no_search_results') || '검색 결과가 없습니다.'}
                         </div>
                     )}
 
@@ -108,7 +108,7 @@ export default function Search({ routes, stops, onRouteSelect, onStopSelect }: S
                     {filteredResults.routes.length > 0 && (
                         <div className="border-b border-slate-50 last:border-0">
                             <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider sticky top-0">
-                                노선 ({filteredResults.routes.length})
+                                {t('route_info') || '노선'} ({filteredResults.routes.length})
                             </div>
                             {filteredResults.routes.map(route => (
                                 <button
@@ -136,7 +136,7 @@ export default function Search({ routes, stops, onRouteSelect, onStopSelect }: S
                     {filteredResults.stops.length > 0 && (
                         <div>
                             <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider sticky top-0">
-                                정류장 ({filteredResults.stops.length})
+                                {t('total_stops') || '정류장'} ({filteredResults.stops.length})
                             </div>
                             {filteredResults.stops.map(stop => (
                                 <button

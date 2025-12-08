@@ -42,3 +42,16 @@ export type RouteStop = {
     routes?: Route;
     stops?: Stop;
 };
+
+export type Feedback = {
+    id: string;
+    user_id: string;
+    user_email: string; // Stored for display convenience
+    category: string;
+    content: string;
+    stop_id: string | null;
+    status: 'pending' | 'resolved' | 'ignored';
+    created_at: string;
+    // Joins
+    stops?: Stop;
+};
