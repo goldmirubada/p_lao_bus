@@ -604,7 +604,7 @@ export default function SchematicMap() {
             <p>Acc: {userLocation ? `${Math.round(userLocation.accuracy)}m` : 'N/A'}</p>
             <p className="text-red-400">Err: {locationError || 'None'}</p>
             <p>Notif: {'Notification' in window ? Notification.permission : 'Not Supported'}</p>
-            <p>Vib: {navigator.vibrate ? 'Yes' : 'No'}</p>
+            <p>Vib: {typeof navigator !== 'undefined' && 'vibrate' in navigator ? 'Yes' : 'No'}</p>
             <p>Alarm: {isAlarmActive ? 'Active' : 'Off'}</p>
             <p>Time: {new Date().toLocaleTimeString()}</p>
             <div className="pt-2 border-t border-gray-600 break-words text-[10px] opacity-70">
