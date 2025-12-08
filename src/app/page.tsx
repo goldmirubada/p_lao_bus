@@ -56,6 +56,10 @@ export default function SchematicMap() {
     return Array.from(stopsMap.values());
   }, [routeStops]);
 
+  const filteredRoutes = useMemo(() => {
+    return selectedRoute === 'all' ? routes : routes.filter(r => r.id === selectedRoute);
+  }, [routes, selectedRoute]);
+
   const displayedRoutes = showFavoritesOnly
     ? routes.filter(r => isFavorite(r.id))
     : routes;
@@ -399,7 +403,7 @@ export default function SchematicMap() {
                   <div className="mb-6">
                     <GoogleMapsWrapper>
                       <RouteMap
-                        routes={selectedRoute === 'all' ? routes : routes.filter(r => r.id === selectedRoute)}
+                        routes={filteredRoutes}
                         stopsByRoute={routeStops}
                         onStopSelect={(stopId) => {
                           // Find the stop object from all stops
