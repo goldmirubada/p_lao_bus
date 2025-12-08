@@ -39,50 +39,77 @@ export function useStopAlarm({ userLocation, onAlarmTriggered }: UseStopAlarmPro
     };
 
     useEffect(() => {
-        if (!userLocation || !targetStop || !isAlarmActive) return;
+        try {
+            if (!userLocation || !targetStop || !isAlarmActive) return;
 
-        // Guard clause: Ensure targetStop has valid location data
-        if (!targetStop.location || !(targetStop.location as any).coordinates) {
-            console.warn('Target stop has no valid location data:', targetStop);
-            return;
-        }
+            // Guard clause: Ensure targetStop has valid location data
+            const loc = targetStop.location as any;
+            if (!loc || !loc.coordinates || !Array.isArray(loc.coordinates) || loc.coordinates.length < 2) {
+                console.warn('Target stop has invalid location data:', targetStop);
+                return;
+            }
 
-        const stopLat = (targetStop.location as any).coordinates[1];
-        const stopLng = (targetStop.location as any).coordinates[0];
+            const stopLat = loc.coordinates[1];
+            const stopLng = loc.coordinates[0];
 
-        const distance = calculateDistance(
-            userLocation.latitude,
-            userLocation.longitude,
-            stopLat,
-            stopLng
-        );
+            if (typeof stopLat !== 'number' || typeof stopLng !== 'number') {
+                console.warn('Invalid coordinates:', stopLat, stopLng);
+                return;
+            }
 
-        // Trigger at 200m
-        if (distance <= 200) {
-            triggerAlarm();
+            const distance = calculateDistance(
+                userLocation.latitude,
+                userLocation.longitude,
+                stopLat,
+                stopLng
+            );
+
+            // Trigger at 200m
+            if (distance <= 200) {
+                triggerAlarm();
+            }
+        } catch (error) {
+            console.error('Error in alarm effect:', error);
+            // Don't crash the app
         }
     }, [userLocation, targetStop, isAlarmActive]);
 
     const triggerAlarm = () => {
-        setIsAlarmActive(false); // Disable after triggering
+        try {
+            setIsAlarmActive(false); // Disable after triggering
 
-        // 1. Browser Notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('하차 알림', {
-                body: `${targetStop?.stop_name} 정류장이 200m 남았습니다!`,
-            });
+            // 1. Browser Notification
+            try {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('하차 알림', {
+                        body: `${targetStop?.stop_name} 정류장이 200m 남았습니다!`,
+                    });
+                }
+            } catch (e) {
+                console.error('Notification failed:', e);
+            }
+
+            // 2. Audio/Vibration
+            try {
+                if (navigator.vibrate) {
+                    navigator.vibrate([500, 200, 500]); // Vibrate pattern
+                }
+            } catch (e) {
+                console.error('Vibration failed:', e);
+            }
+
+            // Play generated sound
+            try {
+                playBeep();
+            } catch (e) {
+                console.error('Sound play failed:', e);
+            }
+
+            // 3. Callback for UI alert
+            if (onAlarmTriggered) onAlarmTriggered();
+        } catch (error) {
+            console.error('Critical error in triggerAlarm:', error);
         }
-
-        // 2. Audio/Vibration
-        if (navigator.vibrate) {
-            navigator.vibrate([500, 200, 500]); // Vibrate pattern
-        }
-
-        // Play generated sound
-        playBeep();
-
-        // 3. Callback for UI alert
-        if (onAlarmTriggered) onAlarmTriggered();
     };
 
     const setAlarm = (stop: Stop) => {
