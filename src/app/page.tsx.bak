@@ -5,14 +5,10 @@ import { supabase } from '@/lib/supabase/client';
 import { Route, Stop, RouteStop } from '@/lib/supabase/types';
 import { MapPin, Navigation as NavigationIcon, Info, Star } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import React, { useMemo } from 'react';
 import GoogleMapsWrapper from '@/components/admin/GoogleMapsWrapper';
 import LanguageSwitcher from '@/components/shared/LanguageSwitcher';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useFavorites } from '@/hooks/useFavorites';
-import { useGeolocation } from '@/hooks/useGeolocation';
-import { useStopAlarm } from '@/hooks/useStopAlarm';
-import NearMePanel from '@/components/user/NearMePanel';
 
 const RouteMap = dynamic(() => import('@/components/user/RouteMap'), { ssr: false });
 
@@ -26,33 +22,11 @@ export default function SchematicMap() {
   const [loading, setLoading] = useState(true);
   const [selectedRoute, setSelectedRoute] = useState<string>('all');
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
-  const [isNearMeOpen, setIsNearMeOpen] = useState(false);
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const { t } = useLanguage();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { location: userLocation, loading: locationLoading } = useGeolocation();
-
-  const {
-    targetStop: alarmTargetStop,
-    isAlarmActive,
-    setAlarm,
-    cancelAlarm
-  } = useStopAlarm({
-    userLocation,
-    onAlarmTriggered: () => {
-      alert(t('alarm_triggered') + '\n' + t('alarm_desc'));
-    }
-  });
-
-  const allUniqueStops = useMemo(() => {
-    const stopsMap = new Map<string, Stop>();
-    Object.values(routeStops).flat().forEach(rs => {
-      stopsMap.set(rs.stops.id, rs.stops);
-    });
-    return Array.from(stopsMap.values());
-  }, [routeStops]);
 
   const displayedRoutes = showFavoritesOnly
     ? routes.filter(r => isFavorite(r.id))
@@ -158,22 +132,6 @@ export default function SchematicMap() {
           </div>
         </div>
       </header >
-
-      {/* Alarm Status Banner */}
-      {isAlarmActive && alarmTargetStop && (
-        <div className="bg-blue-600 text-white p-3 text-sm flex items-center justify-between animate-fadeIn px-4">
-          <div className="flex items-center gap-2">
-            <span className="animate-pulse">🔔</span>
-            <span>{t('stop_alarm_monitoring')}: <strong>{alarmTargetStop.stop_name}</strong></span>
-          </div>
-          <button
-            onClick={cancelAlarm}
-            className="text-white/80 hover:text-white underline text-xs"
-          >
-            {t('cancel_alarm')}
-          </button>
-        </div>
-      )}
 
       {/* Main Content */}
       < div className="container mx-auto px-4 py-8" >
@@ -371,7 +329,6 @@ export default function SchematicMap() {
                           });
                           if (foundStop) setSelectedStop(foundStop);
                         }}
-                        onMyLocationClick={() => setIsNearMeOpen(true)}
                       />
                     </GoogleMapsWrapper>
                   </div>
@@ -507,64 +464,17 @@ export default function SchematicMap() {
                   <NavigationIcon size={20} />
                   {t('directions')}
                 </button>
-
-                <div className="flex-1 flex gap-2">
-                  {/* Alarm Button */}
-                  <button
-                    onClick={() => {
-                      if (isAlarmActive && alarmTargetStop?.id === selectedStop.id) {
-                        cancelAlarm();
-                        alert(t('alarm_cancelled'));
-                      } else {
-                        setAlarm(selectedStop);
-                        alert(t('alarm_set'));
-                      }
-                    }}
-                    className={`flex-1 py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${isAlarmActive && alarmTargetStop?.id === selectedStop.id
-                        ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                  >
-                    {isAlarmActive && alarmTargetStop?.id === selectedStop.id ? (
-                      <>
-                        <span>🔕</span>
-                        {t('cancel_alarm')}
-                      </>
-                    ) : (
-                      <>
-                        <span>🔔</span>
-                        {t('set_alarm')}
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setSelectedStop(null)}
-                    className="bg-slate-100 text-slate-700 w-12 rounded-lg hover:bg-slate-200 transition-colors font-medium flex items-center justify-center"
-                  >
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+                <button
+                  onClick={() => setSelectedStop(null)}
+                  className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                >
+                  {t('close')}
+                </button>
               </div>
             </div>
           </div>
         )
       }
-
-      <NearMePanel
-        isOpen={isNearMeOpen}
-        onClose={() => setIsNearMeOpen(false)}
-        userLocation={userLocation}
-        stops={allUniqueStops}
-        onStopClick={(stop) => {
-          setSelectedStop(stop);
-          setIsNearMeOpen(false);
-        }}
-        loadingLocation={locationLoading}
-        onRefreshLocation={() => window.location.reload()}
-      />
     </div >
   );
 }

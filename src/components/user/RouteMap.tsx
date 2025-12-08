@@ -21,11 +21,12 @@ interface RouteMapProps {
     };
     selectableStops?: Stop[];
     onStopSelect?: (stopId: string) => void;
+    onMyLocationClick?: () => void;
 }
 
 const DEFAULT_STOPS: Stop[] = [];
 
-export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAULT_STOPS, onStopSelect }: RouteMapProps) {
+export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAULT_STOPS, onStopSelect, onMyLocationClick }: RouteMapProps) {
     const { t } = useLanguage();
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
     const userMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -346,6 +347,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
         };
 
         navigator.geolocation.getCurrentPosition(success, error, options);
+        if (onMyLocationClick) onMyLocationClick();
     };
 
     if (!mounted) {
