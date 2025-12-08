@@ -38,6 +38,7 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
     const markersRef = useRef<google.maps.Marker[]>([]);
     const selectableMarkersRef = useRef<google.maps.Marker[]>([]);
     const polylinesRef = useRef<google.maps.Polyline[]>([]);
+    const boundsRef = useRef<string>('');
 
     useEffect(() => {
         setMounted(true);
@@ -297,9 +298,13 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
             });
         }
 
-        // Fit bounds
-        if (!bounds.isEmpty()) {
+        // Generate a unique signature for the current routes to avoid redundant re-fits
+        const currentRoutesId = routes.map(r => r.id).sort().join(',');
+
+        // Only fit bounds if the route set has actually changed
+        if (boundsRef.current !== currentRoutesId && !bounds.isEmpty()) {
             mapInstanceRef.current.fitBounds(bounds);
+            boundsRef.current = currentRoutesId;
         }
 
     }, [routes, stopsByRoute, selectableStops, mounted]);
