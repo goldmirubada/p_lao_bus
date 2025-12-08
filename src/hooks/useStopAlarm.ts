@@ -41,6 +41,12 @@ export function useStopAlarm({ userLocation, onAlarmTriggered }: UseStopAlarmPro
     useEffect(() => {
         if (!userLocation || !targetStop || !isAlarmActive) return;
 
+        // Guard clause: Ensure targetStop has valid location data
+        if (!targetStop.location || !(targetStop.location as any).coordinates) {
+            console.warn('Target stop has no valid location data:', targetStop);
+            return;
+        }
+
         const stopLat = (targetStop.location as any).coordinates[1];
         const stopLng = (targetStop.location as any).coordinates[0];
 
