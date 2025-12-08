@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Route, Stop, RouteStop } from '@/lib/supabase/types';
+import { decryptData } from '@/lib/encryption';
+import { getSecureKeyFromWasm } from '@/lib/wasm-loader';
 import { MapPin, Navigation as NavigationIcon, Info, Star, AlertTriangle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import React, { useMemo } from 'react';
@@ -88,65 +90,48 @@ export default function SchematicMap() {
     try {
       setLoading(true);
 
-      // Fetch routes
-      const { data: routesData, error: routesError } = await supabase
-        .from('routes')
-        .select('*')
-        .eq('is_active', true)
-        .order('route_number');
+      // Fetch Encrypted Map Data from API
+      // Mobile App needs absolute URL (env), Web uses relative path (empty string)
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+      const response = await fetch(`${apiBase}/api/map-data`, { cache: 'no-store' });
 
-      if (routesError) throw routesError;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API Error Details:', errorData);
+        throw new Error(errorData.details || `API Error: ${response.status}`);
+      }
 
-      setRoutes(routesData || []);
+      const { payload } = await response.json();
 
-      // Offline Support: Save routes to localStorage
+      if (!payload) {
+        throw new Error('No payload received');
+      }
+
+      // 1. Get Secret Key from WASM (Hidden)
+      let secretKey = '';
+      try {
+        secretKey = await getSecureKeyFromWasm();
+      } catch (e) {
+        console.error('WASM Load Failed', e);
+        throw new Error('Security Module Error');
+      }
+
+      // 2. Decrypt the data using the WASM key
+      const decryptedData = decryptData(payload, secretKey);
+
+      if (!decryptedData) {
+        throw new Error('Decryption failed');
+      }
+
+      const { routes: routesData, routeStops: stopsData } = decryptedData;
+
       if (routesData) {
+        setRoutes(routesData);
+        // Offline Support: Save routes to localStorage
         localStorage.setItem('cached_routes', JSON.stringify(routesData));
       }
 
-      // Optimization: Fetch ALL stops with coordinates once
-      const { data: allStopsData } = await supabase.rpc('get_stops_with_coordinates');
-      const stopLocationMap = new Map();
-
-      if (allStopsData) {
-        allStopsData.forEach((stop: any) => {
-          stopLocationMap.set(stop.id, { lat: stop.lat, lng: stop.lng });
-        });
-      }
-
-      // Fetch route stops for each route
-      if (routesData) {
-        const stopsData: { [key: string]: RouteStopWithDetail[] } = {};
-
-        for (const route of routesData) {
-          const { data, error } = await supabase
-            .from('route_stops')
-            .select('*, stops(*)')
-            .eq('route_id', route.id)
-            .order('sequence_order');
-
-          if (!error && data) {
-            // Attach coordinates from Map instead of N+1 RPC calls
-            const stopsWithCoords = data.map((rs: any) => {
-              const coords = stopLocationMap.get(rs.stops.id);
-              if (coords) {
-                // Add GeoJSON-formatted location
-                rs.stops.location = {
-                  type: 'Point',
-                  coordinates: [coords.lng, coords.lat] // GeoJSON is [lng, lat]
-                };
-                // Also add flat lat/lng for convenience
-                rs.stops.lat = coords.lat;
-                rs.stops.lng = coords.lng;
-              }
-              return rs;
-            });
-
-            // @ts-ignore
-            stopsData[route.id] = stopsWithCoords;
-          }
-        }
-
+      if (stopsData) {
         setRouteStops(stopsData);
         // Offline Support: Save stops to localStorage
         localStorage.setItem('cached_stop_data', JSON.stringify(stopsData));
