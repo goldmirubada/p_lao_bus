@@ -12,13 +12,31 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-    const [language, setLanguageState] = useState<Language>('ko');
+    const [language, setLanguageState] = useState<Language>('en'); // Default to 'en'
 
     useEffect(() => {
         // Load saved language from local storage on mount
         const savedLang = localStorage.getItem('app_language') as Language;
-        if (savedLang && ['ko', 'lo', 'en'].includes(savedLang)) {
+        if (savedLang && ['ko', 'lo', 'en', 'cn', 'th', 'vi', 'km'].includes(savedLang)) {
             setLanguageState(savedLang);
+        } else {
+            // Detect system language
+            const systemLang = navigator.language.toLowerCase();
+            if (systemLang.startsWith('ko')) {
+                setLanguageState('ko');
+            } else if (systemLang.startsWith('lo')) {
+                setLanguageState('lo');
+            } else if (systemLang.startsWith('zh')) {
+                setLanguageState('cn');
+            } else if (systemLang.startsWith('th')) {
+                setLanguageState('th');
+            } else if (systemLang.startsWith('vi')) {
+                setLanguageState('vi');
+            } else if (systemLang.startsWith('km')) {
+                setLanguageState('km');
+            } else {
+                setLanguageState('en'); // Default fallback
+            }
         }
     }, []);
 
@@ -28,7 +46,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     };
 
     const t = (key: keyof typeof translations['ko']) => {
-        return translations[language][key] || translations['ko'][key] || key;
+        return translations[language][key] || translations['en'][key] || key;
     };
 
     return (

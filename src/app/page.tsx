@@ -13,6 +13,7 @@ import { useFavorites } from '@/hooks/useFavorites';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useStopAlarm } from '@/hooks/useStopAlarm';
 import NearMePanel from '@/components/user/NearMePanel';
+import { ROUTE_FARES, formatFare } from '@/constants/fares';
 
 const RouteMap = dynamic(() => import('@/components/user/RouteMap'), { ssr: false });
 
@@ -77,6 +78,11 @@ export default function SchematicMap() {
 
       setRoutes(routesData || []);
 
+      // Offline Support: Save routes to localStorage
+      if (routesData) {
+        localStorage.setItem('cached_routes', JSON.stringify(routesData));
+      }
+
       // Fetch route stops for each route
       if (routesData) {
         const stopsData: { [key: string]: RouteStopWithDetail[] } = {};
@@ -112,9 +118,22 @@ export default function SchematicMap() {
         }
 
         setRouteStops(stopsData);
+        // Offline Support: Save stops to localStorage
+        localStorage.setItem('cached_stop_data', JSON.stringify(stopsData));
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+
+      // Offline Support: Load from localStorage on error
+      const cachedRoutes = localStorage.getItem('cached_routes');
+      const cachedStops = localStorage.getItem('cached_stop_data');
+
+      if (cachedRoutes && cachedStops) {
+        setRoutes(JSON.parse(cachedRoutes));
+        setRouteStops(JSON.parse(cachedStops));
+        console.log('Loaded data from offline cache');
+      }
+
     } finally {
       setLoading(false);
     }
@@ -149,12 +168,9 @@ export default function SchematicMap() {
                 <p className="text-sm text-slate-500">Laos Bus Route Map</p>
               </div>
             </div>
-            <a
-              href="/admin/dashboard"
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium"
-            >
-              {t('admin')}
-            </a>
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher />
+            </div>
           </div>
         </div>
       </header >
@@ -337,6 +353,13 @@ export default function SchematicMap() {
                             <div className="mt-4 pt-4 border-t border-slate-200 text-sm text-slate-500 flex justify-between">
                               <span>{t('total_stops')}</span>
                               <span className="font-bold text-slate-700">{routeStops[route.id]?.length || 0}개</span>
+                            </div>
+                            {/* Fare Info */}
+                            <div className="mt-2 pt-2 border-t border-slate-200 text-sm text-slate-500 flex justify-between">
+                              <span>{t('fare')}</span>
+                              <span className="font-bold text-blue-600">
+                                {formatFare(ROUTE_FARES[route.route_number] || ROUTE_FARES['default'])}
+                              </span>
                             </div>
                           </div>
                         );
@@ -521,8 +544,8 @@ export default function SchematicMap() {
                       }
                     }}
                     className={`flex-1 py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${isAlarmActive && alarmTargetStop?.id === selectedStop.id
-                        ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                   >
                     {isAlarmActive && alarmTargetStop?.id === selectedStop.id ? (
