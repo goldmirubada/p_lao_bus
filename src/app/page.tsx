@@ -34,7 +34,7 @@ export default function SchematicMap() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const { t } = useLanguage();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { location: userLocation, loading: locationLoading } = useGeolocation();
+  const { location: userLocation, loading: locationLoading, error: locationError } = useGeolocation();
 
   const {
     targetStop: alarmTargetStop,
@@ -594,6 +594,25 @@ export default function SchematicMap() {
         loadingLocation={locationLoading}
         onRefreshLocation={() => window.location.reload()}
       />
+
+      {/* Debug Panel - Temporary */}
+      <div className="fixed top-20 left-4 z-50 bg-black/80 text-green-400 p-2 rounded text-xs font-mono select-text pointer-events-auto max-w-[200px] overflow-hidden">
+        <details>
+          <summary className="cursor-pointer font-bold">🛠 Debug Info</summary>
+          <div className="mt-2 space-y-1">
+            <p>GPS: {userLocation ? `${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}` : 'null'}</p>
+            <p>Acc: {userLocation ? `${Math.round(userLocation.accuracy)}m` : 'N/A'}</p>
+            <p className="text-red-400">Err: {locationError || 'None'}</p>
+            <p>Notif: {'Notification' in window ? Notification.permission : 'Not Supported'}</p>
+            <p>Vib: {navigator.vibrate ? 'Yes' : 'No'}</p>
+            <p>Alarm: {isAlarmActive ? 'Active' : 'Off'}</p>
+            <p>Time: {new Date().toLocaleTimeString()}</p>
+            <div className="pt-2 border-t border-gray-600 break-words text-[10px] opacity-70">
+              {navigator.userAgent.slice(0, 50)}...
+            </div>
+          </div>
+        </details>
+      </div>
     </div >
   );
 }
