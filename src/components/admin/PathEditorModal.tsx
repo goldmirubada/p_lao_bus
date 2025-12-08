@@ -40,142 +40,154 @@ export default function PathEditorModal({
 
     // Initialize Map
     useEffect(() => {
-        if (!isOpen || !mapRef.current || !window.google) return;
+        const initMap = async () => {
+            if (!isOpen || !mapRef.current || !window.google) return;
 
-        const bounds = new google.maps.LatLngBounds();
-        bounds.extend({ lat: startStop.lat, lng: startStop.lng });
-        bounds.extend({ lat: endStop.lat, lng: endStop.lng });
+            const { Map } = await google.maps.importLibrary("maps") as any;
+            const { LatLngBounds } = await google.maps.importLibrary("core") as any;
 
-        // Add initial path points to bounds
-        initialPath.forEach(p => bounds.extend(p));
+            const bounds = new LatLngBounds();
+            bounds.extend({ lat: startStop.lat, lng: startStop.lng });
+            bounds.extend({ lat: endStop.lat, lng: endStop.lng });
 
-        const newMap = new google.maps.Map(mapRef.current, {
-            center: bounds.getCenter(),
-            zoom: 14,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false,
-            clickableIcons: false, // Prevent clicking POIs
-        });
+            // Add initial path points to bounds
+            initialPath.forEach(p => bounds.extend(p));
 
-        newMap.fitBounds(bounds);
+            const newMap = new Map(mapRef.current, {
+                center: bounds.getCenter(),
+                zoom: 14,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+                clickableIcons: false, // Prevent clicking POIs
+            });
 
-        // Add padding to bounds
-        const listener = google.maps.event.addListener(newMap, "idle", () => {
-            // newMap.setZoom(newMap.getZoom()! - 1); 
-            google.maps.event.removeListener(listener);
-        });
+            newMap.fitBounds(bounds);
 
-        setMap(newMap);
+            // Add padding to bounds
+            const listener = google.maps.event.addListener(newMap, "idle", () => {
+                // newMap.setZoom(newMap.getZoom()! - 1); 
+                google.maps.event.removeListener(listener);
+            });
 
-        // Map click listener to add points
-        newMap.addListener('click', (e: google.maps.MapMouseEvent) => {
-            if (!e.latLng) return;
-            const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-            setPath(prev => [...prev, newPoint]);
-        });
+            setMap(newMap);
+
+            // Map click listener to add points
+            newMap.addListener('click', (e: google.maps.MapMouseEvent) => {
+                if (!e.latLng) return;
+                const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+                setPath(prev => [...prev, newPoint]);
+            });
+        };
+        initMap();
 
     }, [isOpen, mapRef]); // Re-init map when modal opens
 
     // Draw Map Elements (Markers & Polyline)
     useEffect(() => {
-        if (!map || !window.google) return;
+        const drawElements = async () => {
+            if (!map || !window.google) return;
 
-        // Clear existing markers
-        markersRef.current.forEach(m => m.setMap(null));
-        markersRef.current = [];
+            const { Marker } = await google.maps.importLibrary("marker") as any;
+            const { Polyline } = await google.maps.importLibrary("maps") as any;
 
-        // Clear existing polyline
-        if (polylineRef.current) {
-            polylineRef.current.setMap(null);
-        }
+            // Clear existing markers
+            markersRef.current.forEach(m => m.setMap(null));
+            markersRef.current = [];
 
-        // 1. Draw Start Marker (Blue)
-        new google.maps.Marker({
-            position: { lat: startStop.lat, lng: startStop.lng },
-            map: map,
-            label: { text: "A", color: "white", fontWeight: "bold" },
-            title: `출발: ${startStop.name}`,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 10,
-                fillColor: '#2563EB', // Blue-600
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 2,
+            // Clear existing polyline
+            if (polylineRef.current) {
+                polylineRef.current.setMap(null);
             }
-        });
 
-        // 2. Draw End Marker (Red)
-        new google.maps.Marker({
-            position: { lat: endStop.lat, lng: endStop.lng },
-            map: map,
-            label: { text: "B", color: "white", fontWeight: "bold" },
-            title: `도착: ${endStop.name}`,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 10,
-                fillColor: '#DC2626', // Red-600
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 2,
-            }
-        });
-
-        // 3. Draw Waypoint Markers (Draggable)
-        path.forEach((point, index) => {
-            const marker = new google.maps.Marker({
-                position: point,
+            // 1. Draw Start Marker (Blue)
+            new Marker({
+                position: { lat: startStop.lat, lng: startStop.lng },
                 map: map,
-                draggable: true,
-                title: `경유지 ${index + 1} (우클릭하여 삭제)`,
+                label: { text: "A", color: "white", fontWeight: "bold" },
+                title: `출발: ${startStop.name}`,
                 icon: {
                     path: google.maps.SymbolPath.CIRCLE,
-                    scale: 6,
-                    fillColor: '#F59E0B', // Amber-500
+                    scale: 10,
+                    fillColor: '#2563EB', // Blue-600
                     fillOpacity: 1,
                     strokeColor: 'white',
                     strokeWeight: 2,
                 }
             });
 
-            // Drag event
-            marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
-                if (e.latLng) {
-                    const newPath = [...path];
-                    newPath[index] = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-                    setPath(newPath);
+            // 2. Draw End Marker (Red)
+            new Marker({
+                position: { lat: endStop.lat, lng: endStop.lng },
+                map: map,
+                label: { text: "B", color: "white", fontWeight: "bold" },
+                title: `도착: ${endStop.name}`,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: '#DC2626', // Red-600
+                    fillOpacity: 1,
+                    strokeColor: 'white',
+                    strokeWeight: 2,
                 }
             });
 
-            // Right click to delete
-            marker.addListener('rightclick', () => {
-                setPath(prev => prev.filter((_, i) => i !== index));
+            // 3. Draw Waypoint Markers (Draggable)
+            path.forEach((point, index) => {
+                const marker = new Marker({
+                    position: point,
+                    map: map,
+                    draggable: true,
+                    title: `경유지 ${index + 1} (우클릭하여 삭제)`,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 6,
+                        fillColor: '#F59E0B', // Amber-500
+                        fillOpacity: 1,
+                        strokeColor: 'white',
+                        strokeWeight: 2,
+                    }
+                });
+
+                // Drag event
+                marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+                    if (e.latLng) {
+                        const newPath = [...path];
+                        newPath[index] = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+                        setPath(newPath);
+                    }
+                });
+
+                // Right click to delete
+                marker.addListener('rightclick', () => {
+                    setPath(prev => prev.filter((_, i) => i !== index));
+                });
+
+                markersRef.current.push(marker);
             });
 
-            markersRef.current.push(marker);
-        });
+            // 4. Draw Polyline
+            const pathCoordinates = [
+                { lat: startStop.lat, lng: startStop.lng },
+                ...path,
+                { lat: endStop.lat, lng: endStop.lng }
+            ];
 
-        // 4. Draw Polyline
-        const pathCoordinates = [
-            { lat: startStop.lat, lng: startStop.lng },
-            ...path,
-            { lat: endStop.lat, lng: endStop.lng }
-        ];
-
-        polylineRef.current = new google.maps.Polyline({
-            path: pathCoordinates,
-            geodesic: true,
-            strokeColor: '#2563EB',
-            strokeOpacity: 0.8,
-            strokeWeight: 4,
-            map: map,
-            icons: [{
-                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
-                offset: '100%',
-                repeat: '100px'
-            }]
-        });
+            polylineRef.current = new Polyline({
+                path: pathCoordinates,
+                geodesic: true,
+                strokeColor: '#2563EB',
+                strokeOpacity: 0.8,
+                strokeWeight: 4,
+                map: map,
+                icons: [{
+                    icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+                    offset: '100%',
+                    repeat: '100px'
+                }]
+            });
+        };
+        drawElements();
 
     }, [map, path, startStop, endStop]);
 

@@ -70,242 +70,259 @@ export default function RouteMap({ routes, stopsByRoute, selectableStops = DEFAU
 
     // Initialize Map
     useEffect(() => {
-        if (!mounted || !mapRef.current || !window.google) {
-            return;
-        }
+        const initMap = async () => {
+            if (!mounted || !mapRef.current || !window.google) return;
 
-        if (!mapInstanceRef.current) {
-            const map = new google.maps.Map(mapRef.current, {
-                center: { lat: 17.9757, lng: 102.6331 }, // Default Vientiane
-                zoom: 13,
-                mapTypeControl: false,
-                streetViewControl: false,
-                gestureHandling: 'greedy', // Allow zooming without CTRL key
-            });
-            mapInstanceRef.current = map;
-        }
+            if (!mapInstanceRef.current) {
+                const { Map } = await google.maps.importLibrary("maps") as any;
+
+                const map = new Map(mapRef.current, {
+                    center: { lat: 17.9757, lng: 102.6331 }, // Default Vientiane
+                    zoom: 13,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    gestureHandling: 'greedy', // Allow zooming without CTRL key
+                });
+                mapInstanceRef.current = map;
+            }
+        };
+        initMap();
     }, [mounted]);
 
     // Handle User Marker
     useEffect(() => {
-        if (!mapInstanceRef.current || !window.google || !userLocation) return;
+        const updateUserMarker = async () => {
+            if (!mapInstanceRef.current || !window.google || !userLocation) return;
 
-        if (!userMarkerRef.current) {
-            userMarkerRef.current = new google.maps.Marker({
-                position: userLocation,
-                map: mapInstanceRef.current,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 8,
-                    fillColor: '#3b82f6', // Blue-500
-                    fillOpacity: 1,
-                    strokeColor: '#ffffff',
-                    strokeWeight: 2,
-                },
-                title: t('my_location'),
-                zIndex: 100
-            });
+            const { Marker } = await google.maps.importLibrary("marker") as any;
 
-            // Add a pulse effect circle
-            userPulseMarkerRef.current = new google.maps.Marker({
-                position: userLocation,
-                map: mapInstanceRef.current,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 16,
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.2,
-                    strokeColor: '#3b82f6',
-                    strokeOpacity: 0.2,
-                    strokeWeight: 1,
-                },
-                zIndex: 99
-            });
-        } else {
-            userMarkerRef.current.setPosition(userLocation);
-            if (userPulseMarkerRef.current) {
-                userPulseMarkerRef.current.setPosition(userLocation);
+            if (!userMarkerRef.current) {
+                userMarkerRef.current = new Marker({
+                    position: userLocation,
+                    map: mapInstanceRef.current,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 8,
+                        fillColor: '#3b82f6', // Blue-500
+                        fillOpacity: 1,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2,
+                    },
+                    title: t('my_location'),
+                    zIndex: 100
+                });
+
+                // Add a pulse effect circle
+                userPulseMarkerRef.current = new Marker({
+                    position: userLocation,
+                    map: mapInstanceRef.current,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 16,
+                        fillColor: '#3b82f6',
+                        fillOpacity: 0.2,
+                        strokeColor: '#3b82f6',
+                        strokeOpacity: 0.2,
+                        strokeWeight: 1,
+                    },
+                    zIndex: 99
+                });
+            } else {
+                userMarkerRef.current.setPosition(userLocation);
+                if (userPulseMarkerRef.current) {
+                    userPulseMarkerRef.current.setPosition(userLocation);
+                }
             }
-        }
+        };
+        updateUserMarker();
     }, [userLocation, mounted]);
 
     // Handle Routes and Stops
     useEffect(() => {
-        if (!mapInstanceRef.current || !window.google) return;
+        const renderMapObjects = async () => {
+            if (!mapInstanceRef.current || !window.google) return;
 
-        console.log('Rendering routes:', routes.length);
+            console.log('Rendering routes:', routes.length);
 
-        // Clear existing markers and polylines
-        markersRef.current.forEach(marker => marker.setMap(null));
-        markersRef.current = [];
-        selectableMarkersRef.current.forEach(marker => marker.setMap(null));
-        selectableMarkersRef.current = [];
-        polylinesRef.current.forEach(polyline => polyline.setMap(null));
-        polylinesRef.current = [];
+            // Load necessary libraries
+            const { Marker } = await google.maps.importLibrary("marker") as any;
+            const { Polyline } = await google.maps.importLibrary("maps") as any;
+            const { LatLngBounds } = await google.maps.importLibrary("core") as any;
+            const { InfoWindow } = await google.maps.importLibrary("maps") as any;
 
-        // 1. Render Selectable Stops (All available stops)
-        if (selectableStops.length > 0) {
-            selectableStops.forEach(stop => {
-                let lat: number | null = null;
-                let lng: number | null = null;
+            // Clear existing markers and polylines
+            markersRef.current.forEach(marker => marker.setMap(null));
+            markersRef.current = [];
+            selectableMarkersRef.current.forEach(marker => marker.setMap(null));
+            selectableMarkersRef.current = [];
+            polylinesRef.current.forEach(polyline => polyline.setMap(null));
+            polylinesRef.current = [];
 
-                if (stop.location) {
-                    const loc = stop.location as any;
-                    if (loc.coordinates && Array.isArray(loc.coordinates)) {
-                        lng = loc.coordinates[0];
-                        lat = loc.coordinates[1];
-                    } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
-                        lat = (stop as any).lat;
-                        lng = (stop as any).lng;
+            // 1. Render Selectable Stops (All available stops)
+            if (selectableStops.length > 0) {
+                selectableStops.forEach(stop => {
+                    let lat: number | null = null;
+                    let lng: number | null = null;
+
+                    if (stop.location) {
+                        const loc = stop.location as any;
+                        if (loc.coordinates && Array.isArray(loc.coordinates)) {
+                            lng = loc.coordinates[0];
+                            lat = loc.coordinates[1];
+                        } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
+                            lat = (stop as any).lat;
+                            lng = (stop as any).lng;
+                        }
                     }
-                }
 
-                if (lat !== null && lng !== null) {
-                    const marker = new google.maps.Marker({
-                        position: { lat, lng },
-                        map: mapInstanceRef.current,
-                        icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            scale: 6,
-                            fillColor: '#334155', // Slate-700
-                            fillOpacity: 0.9,
-                            strokeColor: '#ffffff',
-                            strokeWeight: 2,
-                        },
-                        title: stop.stop_name,
-                        zIndex: 1
-                    });
-
-                    if (onStopSelect) {
-                        marker.addListener('click', () => {
-                            onStopSelect(stop.id);
+                    if (lat !== null && lng !== null) {
+                        const marker = new Marker({
+                            position: { lat, lng },
+                            map: mapInstanceRef.current,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 6,
+                                fillColor: '#334155', // Slate-700
+                                fillOpacity: 0.9,
+                                strokeColor: '#ffffff',
+                                strokeWeight: 2,
+                            },
+                            title: stop.stop_name,
+                            zIndex: 1
                         });
+
+                        if (onStopSelect) {
+                            marker.addListener('click', () => {
+                                onStopSelect(stop.id);
+                            });
+                        }
+
+                        selectableMarkersRef.current.push(marker);
                     }
-
-                    selectableMarkersRef.current.push(marker);
-                }
-            });
-        }
-
-        // 2. Render Routes
-        if (routes.length === 0 && selectableStops.length === 0) {
-            return;
-        }
-
-        const bounds = new google.maps.LatLngBounds();
-        let hasRoutePoints = false;
-
-        routes.forEach(route => {
-            const stops = stopsByRoute[route.id] || [];
-            if (stops.length === 0) return;
-
-            const pathCoordinates: google.maps.LatLngLiteral[] = [];
-
-            stops.forEach((rs, index) => {
-                const stop = rs.stops;
-                let lat: number | null = null;
-                let lng: number | null = null;
-
-                if (stop.location) {
-                    const loc = stop.location as any;
-                    if (loc.coordinates && Array.isArray(loc.coordinates)) {
-                        lng = loc.coordinates[0];
-                        lat = loc.coordinates[1];
-                    } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
-                        lat = (stop as any).lat;
-                        lng = (stop as any).lng;
-                    }
-                }
-
-                if (lat !== null && lng !== null) {
-                    const position = { lat, lng };
-                    pathCoordinates.push(position);
-                    bounds.extend(position);
-                    hasRoutePoints = true;
-
-                    // Add path coordinates (waypoints)
-                    if (rs.path_coordinates && Array.isArray(rs.path_coordinates)) {
-                        rs.path_coordinates.forEach(coord => {
-                            pathCoordinates.push(coord);
-                            bounds.extend(coord);
-                        });
-                    }
-
-                    // Create Marker
-                    const marker = new google.maps.Marker({
-                        position: position,
-                        map: mapInstanceRef.current,
-                        label: {
-                            text: `${index + 1}`,
-                            color: 'white',
-                            fontWeight: 'bold',
-                            fontSize: '10px'
-                        },
-                        icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            scale: 10,
-                            fillColor: route.route_color,
-                            fillOpacity: 1,
-                            strokeColor: '#ffffff',
-                            strokeWeight: 2,
-                        },
-                        title: `${route.route_number}: ${stop.stop_name}`,
-                        zIndex: 10
-                    });
-
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: `
-                            <div style="padding: 8px;">
-                                <div style="font-size: 12px; color: #64748b; margin-bottom: 2px;">${route.route_number}</div>
-                                <strong style="font-size: 14px; color: #1e293b;">${stop.stop_name}</strong>
-                                ${stop.stop_name_en ? `<div style="font-size: 12px; color: #64748b; margin-top: 4px;">${stop.stop_name_en}</div>` : ''}
-                            </div>
-                        `
-                    });
-
-                    marker.addListener('click', () => {
-                        infoWindow.open(mapInstanceRef.current, marker);
-                    });
-
-                    markersRef.current.push(marker);
-                }
-            });
-
-            // Create Polyline
-            if (pathCoordinates.length > 0) {
-                const polyline = new google.maps.Polyline({
-                    path: pathCoordinates,
-                    geodesic: true,
-                    strokeColor: route.route_color,
-                    strokeOpacity: 0.8,
-                    strokeWeight: 4,
-                    map: mapInstanceRef.current,
-                    icons: [{
-                        icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
-                        offset: '100%',
-                        repeat: '100px'
-                    }]
                 });
-                polylinesRef.current.push(polyline);
             }
-        });
 
-        // Add selectable stops to bounds if no route points
-        if (!hasRoutePoints && selectableMarkersRef.current.length > 0) {
-            selectableMarkersRef.current.forEach(marker => {
-                const pos = marker.getPosition();
-                if (pos) bounds.extend(pos);
+            // 2. Render Routes
+            if (routes.length === 0 && selectableStops.length === 0) {
+                return;
+            }
+
+            const bounds = new LatLngBounds();
+            let hasRoutePoints = false;
+
+            routes.forEach(route => {
+                const stops = stopsByRoute[route.id] || [];
+                if (stops.length === 0) return;
+
+                const pathCoordinates: google.maps.LatLngLiteral[] = [];
+
+                stops.forEach((rs, index) => {
+                    const stop = rs.stops;
+                    let lat: number | null = null;
+                    let lng: number | null = null;
+
+                    if (stop.location) {
+                        const loc = stop.location as any;
+                        if (loc.coordinates && Array.isArray(loc.coordinates)) {
+                            lng = loc.coordinates[0];
+                            lat = loc.coordinates[1];
+                        } else if (typeof (stop as any).lat === 'number' && typeof (stop as any).lng === 'number') {
+                            lat = (stop as any).lat;
+                            lng = (stop as any).lng;
+                        }
+                    }
+
+                    if (lat !== null && lng !== null) {
+                        const position = { lat, lng };
+                        pathCoordinates.push(position);
+                        bounds.extend(position);
+                        hasRoutePoints = true;
+
+                        // Add path coordinates (waypoints)
+                        if (rs.path_coordinates && Array.isArray(rs.path_coordinates)) {
+                            rs.path_coordinates.forEach(coord => {
+                                pathCoordinates.push(coord);
+                                bounds.extend(coord);
+                            });
+                        }
+
+                        // Create Marker
+                        const marker = new Marker({
+                            position: position,
+                            map: mapInstanceRef.current,
+                            label: {
+                                text: `${index + 1}`,
+                                color: 'white',
+                                fontWeight: 'bold',
+                                fontSize: '10px'
+                            },
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 10,
+                                fillColor: route.route_color,
+                                fillOpacity: 1,
+                                strokeColor: '#ffffff',
+                                strokeWeight: 2,
+                            },
+                            title: `${route.route_number}: ${stop.stop_name}`,
+                            zIndex: 10
+                        });
+
+                        const infoWindow = new InfoWindow({
+                            content: `
+                                <div style="padding: 8px;">
+                                    <div style="font-size: 12px; color: #64748b; margin-bottom: 2px;">${route.route_number}</div>
+                                    <strong style="font-size: 14px; color: #1e293b;">${stop.stop_name}</strong>
+                                    ${stop.stop_name_en ? `<div style="font-size: 12px; color: #64748b; margin-top: 4px;">${stop.stop_name_en}</div>` : ''}
+                                </div>
+                            `
+                        });
+
+                        marker.addListener('click', () => {
+                            infoWindow.open(mapInstanceRef.current, marker);
+                        });
+
+                        markersRef.current.push(marker);
+                    }
+                });
+
+                // Create Polyline
+                if (pathCoordinates.length > 0) {
+                    const polyline = new Polyline({
+                        path: pathCoordinates,
+                        geodesic: true,
+                        strokeColor: route.route_color,
+                        strokeOpacity: 0.8,
+                        strokeWeight: 4,
+                        map: mapInstanceRef.current,
+                        icons: [{
+                            icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+                            offset: '100%',
+                            repeat: '100px'
+                        }]
+                    });
+                    polylinesRef.current.push(polyline);
+                }
             });
-        }
 
-        // Generate a unique signature for the current routes to avoid redundant re-fits
-        const currentRoutesId = routes.map(r => r.id).sort().join(',');
+            // Add selectable stops to bounds if no route points
+            if (!hasRoutePoints && selectableMarkersRef.current.length > 0) {
+                selectableMarkersRef.current.forEach(marker => {
+                    const pos = marker.getPosition();
+                    if (pos) bounds.extend(pos);
+                });
+            }
 
-        // Only fit bounds if the route set has actually changed
-        if (boundsRef.current !== currentRoutesId && !bounds.isEmpty()) {
-            mapInstanceRef.current.fitBounds(bounds);
-            boundsRef.current = currentRoutesId;
-        }
+            // Generate a unique signature for the current routes to avoid redundant re-fits
+            const currentRoutesId = routes.map(r => r.id).sort().join(',');
+
+            // Only fit bounds if the route set has actually changed
+            if (boundsRef.current !== currentRoutesId && !bounds.isEmpty()) {
+                mapInstanceRef.current.fitBounds(bounds);
+                boundsRef.current = currentRoutesId;
+            }
+        };
+        renderMapObjects();
 
     }, [routes, stopsByRoute, selectableStops, mounted]);
 
