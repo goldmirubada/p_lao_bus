@@ -59,6 +59,8 @@ export const translations = {
         walk_instruction: '다음 정류장까지 도보 이동',
         bus_segment: '버스',
         custom_location: '지도에서 선택한 위치',
+        tab_map: '지도',
+        tab_reset: '초기화',
 
         map_loading_text: '노선도 로딩 중...',
         no_routes_title: '노선 정보가 없습니다',
@@ -164,6 +166,8 @@ export const translations = {
         walk_instruction: 'ຍ່າງໄປຫາປ້າຍຕໍ່ໄປ',
         bus_segment: 'ລົດເມ',
         custom_location: 'ຈຸດທີ່ເລືອກໃນແຜນທີ່',
+        tab_map: 'ແຜນທີ່',
+        tab_reset: 'ລ້າງ',
 
         map_loading_text: 'ກຳລັງໂຫຼດແຜນທີ່...',
         no_routes_title: 'ບໍ່ມີຂໍ້ມູນເສັ້ນທາງ',
@@ -267,6 +271,8 @@ export const translations = {
         walk_instruction: 'Walk to next stop',
         bus_segment: 'Bus',
         custom_location: 'Selected Location',
+        tab_map: 'Map',
+        tab_reset: 'Reset',
 
         map_loading_text: 'Loading Route Map...',
         no_routes_title: 'No Route Information',
@@ -370,6 +376,8 @@ export const translations = {
         walk_instruction: '步行至下一站',
         bus_segment: '公交车',
         custom_location: '在地图上选择的位置',
+        tab_map: '地图',
+        tab_reset: '重置',
 
         map_loading_text: '正在加载路线图...',
         no_routes_title: '无路线信息',
@@ -473,6 +481,8 @@ export const translations = {
         walk_instruction: 'เดินไปยังป้ายถัดไป',
         bus_segment: 'รถเมล์',
         custom_location: 'ตำแหน่งที่เลือกบนแผนที่',
+        tab_map: 'แผนที่',
+        tab_reset: 'รีเซ็ต',
 
         map_loading_text: 'กำลังโหลดแผนที่เส้นทาง...',
         no_routes_title: 'ไม่มีข้อมูลเส้นทาง',
@@ -576,6 +586,8 @@ export const translations = {
         walk_instruction: 'Đi bộ đến trạm tiếp theo',
         bus_segment: 'Xe buýt',
         custom_location: 'Vị trí đã chọn',
+        tab_map: 'Bản đồ',
+        tab_reset: 'Đặt lại',
 
         map_loading_text: 'Đang tải bản đồ tuyến đường...',
         no_routes_title: 'Không có thông tin tuyến đường',
@@ -679,6 +691,8 @@ export const translations = {
         walk_instruction: 'ដើរទៅចំណតបន្ទាប់',
         bus_segment: 'ឡានក្រុង',
         custom_location: 'ទីតាំងដែលបានជ្រើសរើស',
+        tab_map: 'ផែនទី',
+        tab_reset: 'កំណត់ឡើងវិញ',
 
         map_loading_text: 'កំពុងផ្ទុកផែនទីផ្លូវ...',
         no_routes_title: 'គ្មានព័ត៌មានផ្លូវទេ',

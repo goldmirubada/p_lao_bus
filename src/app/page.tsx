@@ -742,6 +742,7 @@ export default function SchematicMap() {
         setStartPoint={setStartRoutePoint}
         endPoint={endRoutePoint}
         setEndPoint={setEndRoutePoint}
+        routes={routes}
       />
     </div>
   );
