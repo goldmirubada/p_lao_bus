@@ -25,6 +25,10 @@ interface MainPanelProps {
     endPoint: Stop | null;
     setEndPoint: (point: Stop | null) => void;
 
+    // Alarm State
+    alarmTargetStop: Stop | null;
+    isAlarmActive: boolean;
+
     // Selection State
     selectedRoute: string;
     isFavorite: (routeId: string) => boolean;
@@ -53,36 +57,38 @@ export default function MainPanel({
     onTabChange,
     selectedRoute,
     isFavorite,
-    toggleFavorite
+    toggleFavorite,
+    alarmTargetStop,
+    isAlarmActive
 }: MainPanelProps) {
     const { t } = useLanguage();
 
     return (
         <div className="bg-white rounded-xl shadow-lg h-full flex flex-col border border-slate-200 overflow-hidden">
-            {/* Tab Header */}
-            <div className="flex border-b border-slate-200 bg-white shrink-0 rounded-t-xl overflow-hidden">
-                <button
-                    onClick={() => onTabChange('search')}
-                    className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors relative
-                    ${activeTab === 'search' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
-                >
-                    <Bus size={18} />
-                    {t('route_info') || '노선 검색'}
-                    {activeTab === 'search' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-                    )}
-                </button>
-                <button
-                    onClick={() => onTabChange('route')}
-                    className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors relative
-                    ${activeTab === 'route' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
-                >
-                    <Navigation size={18} />
-                    {t('find_route') || '길찾기'}
-                    {activeTab === 'route' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-                    )}
-                </button>
+            {/* Tab Header - Segmented Control */}
+            <div className="p-3 bg-white border-b border-slate-100">
+                <div className="flex p-1 bg-slate-100/80 rounded-xl relative">
+                    <button
+                        onClick={() => onTabChange('search')}
+                        className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-lg transition-all duration-200 z-10
+                    ${activeTab === 'search'
+                                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
+                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                    >
+                        <Bus size={16} />
+                        {t('route_info') || '노선 검색'}
+                    </button>
+                    <button
+                        onClick={() => onTabChange('route')}
+                        className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-lg transition-all duration-200 z-10
+                    ${activeTab === 'route'
+                                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
+                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                    >
+                        <Navigation size={16} />
+                        {t('find_route') || '길찾기'}
+                    </button>
+                </div>
             </div>
 
             {/* Tab Content */}
@@ -97,6 +103,8 @@ export default function MainPanel({
                         selectedRoute={selectedRoute}
                         isFavorite={isFavorite}
                         toggleFavorite={toggleFavorite}
+                        alarmTargetStop={alarmTargetStop}
+                        isAlarmActive={isAlarmActive}
                     />
                 </div>
                 <div className={`flex-col h-full ${activeTab === 'route' ? 'flex' : 'hidden'}`}>

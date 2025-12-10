@@ -186,19 +186,19 @@ export default function SchematicMap() {
   return (
     <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-gradient-to-br from-blue-50 to-slate-100 flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4 sm:py-6">
+      <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-2 sm:py-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-600 p-1 rounded-md">
+                <svg className="w-4 h-4 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                 </svg>
               </div>
 
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{t('title')}</h1>
-                <p className="text-xs sm:text-sm text-slate-500">Laos Bus Route Map</p>
+                <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-none">{t('title')}</h1>
+                <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5">Laos Bus Route Map</p>
               </div>
             </div>
 
@@ -226,7 +226,7 @@ export default function SchematicMap() {
       )}
 
       {/* Main Content Area */}
-      <div className="container mx-auto px-4 py-8 flex-1 w-full flex flex-col min-h-0">
+      <div className="container mx-auto px-4 py-2 sm:py-4 flex-1 w-full flex flex-col min-h-0">
         {routes.length === 0 ? (
           <div className="bg-white rounded-xl shadow-lg p-12 text-center my-auto">
             <div className="text-6xl mb-4">🚍</div>
@@ -261,6 +261,8 @@ export default function SchematicMap() {
                 selectedRoute={selectedRoute}
                 isFavorite={isFavorite}
                 toggleFavorite={toggleFavorite}
+                alarmTargetStop={alarmTargetStop}
+                isAlarmActive={isAlarmActive}
               />
             </div>
 

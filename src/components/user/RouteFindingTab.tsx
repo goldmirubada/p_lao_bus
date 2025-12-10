@@ -319,7 +319,7 @@ export default function RouteFindingTab({
                     <button
                         onClick={handleFindRoute}
                         disabled={isCalculating || !endPoint}
-                        className={`flex-1 py-3 rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2
+                        className={`flex-1 py-2 rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2
                     ${(isCalculating || !endPoint) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                     >
                         {isCalculating ? (
@@ -346,7 +346,7 @@ export default function RouteFindingTab({
                                 onPathFound(null);
                                 setErrorMsg(null);
                             }}
-                            className="px-4 py-3 rounded-lg font-bold border-2 border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all flex items-center justify-center whitespace-nowrap"
+                            className="px-4 py-2 rounded-lg font-bold border-2 border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all flex items-center justify-center whitespace-nowrap"
                         >
                             {language === 'ko' ? '초기화' : 'Reset'}
                         </button>

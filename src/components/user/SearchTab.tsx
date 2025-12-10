@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search as SearchIcon, X, MapPin, ChevronDown, Check, Star, Info } from 'lucide-react';
+import { Search as SearchIcon, X, MapPin, ChevronDown, Check, Star, Info, Bell } from 'lucide-react';
 import { Route, Stop, RouteStopWithDetail } from '@/lib/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -14,6 +14,8 @@ interface SearchTabProps {
     selectedRoute: string;
     isFavorite: (routeId: string) => boolean;
     toggleFavorite: (routeId: string) => void;
+    alarmTargetStop?: Stop | null;
+    isAlarmActive?: boolean;
 }
 
 export default function SearchTab({
@@ -24,7 +26,9 @@ export default function SearchTab({
     onStopSelect,
     selectedRoute,
     isFavorite,
-    toggleFavorite
+    toggleFavorite,
+    alarmTargetStop,
+    isAlarmActive
 }: SearchTabProps) {
     const { t } = useLanguage();
     const [query, setQuery] = useState('');
@@ -316,36 +320,46 @@ export default function SearchTab({
                                                 ></div>
                                             )}
 
-                                            {uniqueStopList.map((rs, index) => (
-                                                <div key={rs.id} className="relative flex items-center group">
-                                                    <button
-                                                        onClick={() => onStopSelect(rs.stops)}
-                                                        className="flex items-center gap-4 p-3 w-full hover:bg-white hover:shadow-sm rounded-xl transition-all border border-transparent hover:border-slate-100"
-                                                    >
-                                                        <div
-                                                            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-md flex-shrink-0 ring-4 ring-slate-50 group-hover:ring-white transition-all text-sm"
-                                                            style={{ backgroundColor: route?.route_color || '#64748b' }}
-                                                        >
-                                                            {index + 1}
-                                                        </div>
+                                            {uniqueStopList.map((rs, index) => {
+                                                const isAlarmSet = isAlarmActive && alarmTargetStop?.id === rs.stops?.id;
 
-                                                        <div className="flex-1 text-left overflow-hidden">
-                                                            <div className="font-semibold text-slate-800 text-sm truncate group-hover:text-blue-600 transition-colors">
-                                                                {rs.stops?.stop_name}
+                                                return (
+                                                    <div key={rs.id} className="relative flex items-center group">
+                                                        <button
+                                                            onClick={() => onStopSelect(rs.stops)}
+                                                            className={`flex items-center gap-4 p-3 w-full hover:bg-white hover:shadow-sm rounded-xl transition-all border ${isAlarmSet ? 'bg-red-50 border-red-200' : 'border-transparent hover:border-slate-100'}`}
+                                                        >
+                                                            <div
+                                                                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-md flex-shrink-0 ring-4 ring-slate-50 group-hover:ring-white transition-all text-sm relative"
+                                                                style={{ backgroundColor: route?.route_color || '#64748b' }}
+                                                            >
+                                                                {index + 1}
                                                             </div>
-                                                            {rs.stops?.stop_name_en && (
-                                                                <div className="text-xs text-slate-500 truncate">
-                                                                    {rs.stops.stop_name_en}
+
+                                                            <div className="flex-1 text-left overflow-hidden">
+                                                                <div className="font-semibold text-slate-800 text-sm truncate group-hover:text-blue-600 transition-colors">
+                                                                    {rs.stops?.stop_name}
+                                                                </div>
+                                                                {rs.stops?.stop_name_en && (
+                                                                    <div className="text-xs text-slate-500 truncate">
+                                                                        {rs.stops.stop_name_en}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            {isAlarmSet ? (
+                                                                <div className="flex-shrink-0 text-red-500 animate-pulse bg-red-100 p-2 rounded-full">
+                                                                    <Bell size={18} className="fill-current" />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <MapPin size={16} className="text-blue-500" />
                                                                 </div>
                                                             )}
-                                                        </div>
-
-                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <MapPin size={16} className="text-blue-500" />
-                                                        </div>
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                        </button>
+                                                    </div>
+                                                )
+                                            })}
                                         </div>
                                     );
                                 })()}

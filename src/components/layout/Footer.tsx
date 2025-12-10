@@ -10,9 +10,9 @@ export default function Footer() {
 
     return (
         <>
-            <footer className="bg-slate-50 border-t border-slate-200 py-4 mt-auto">
+            <footer className="bg-slate-50 border-t border-slate-200 py-2 mt-auto">
                 <div className="max-w-7xl mx-auto px-4 text-center">
-                    <div className="flex justify-center gap-4 mb-2 text-xs text-slate-500">
+                    <div className="flex justify-center gap-4 mb-1 text-xs text-slate-500">
                         <button
                             onClick={() => setIsPrivacyOpen(true)}
                             className="hover:text-slate-800 transition-colors"

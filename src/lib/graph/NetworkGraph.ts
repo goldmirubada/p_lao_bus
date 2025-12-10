@@ -33,10 +33,13 @@ export class NetworkGraph {
             if (!stop) return;
 
             if (!this.stops.has(stop.id)) {
+                // Use Helper
+                const { lat, lng } = this.getStopCoords(stop);
+
                 this.stops.set(stop.id, {
                     id: stop.id,
-                    lat: stop.lat, // Assumes flattened structure from page.tsx
-                    lng: stop.lng,
+                    lat: lat || 0,
+                    lng: lng || 0,
                     name: stop.stop_name
                 });
                 this.adjList.set(stop.id, []);
@@ -62,8 +65,10 @@ export class NetworkGraph {
                     continue;
                 }
 
-                const p1 = { lat: from.lat, lng: from.lng };
-                const p2 = { lat: to.lat, lng: to.lng };
+                // Use Helper for robust parsing
+                const p1 = this.getStopCoords(from);
+                const p2 = this.getStopCoords(to);
+
                 const dist = calculateDistance(p1, p2);
                 const time = estimateTimeMinutes(dist, this.BUS_SPEED_KMH);
 
@@ -120,6 +125,26 @@ export class NetworkGraph {
         const edges = this.adjList.get(edge.source) || [];
         edges.push(edge);
         this.adjList.set(edge.source, edges);
+    }
+
+    /**
+     * Helper to safely extract coordinates
+     */
+    private getStopCoords(stop: any): { lat: number, lng: number } {
+        let lat = stop.lat;
+        let lng = stop.lng;
+
+        if ((lat === undefined || lng === undefined) && stop.location) {
+            const loc = stop.location;
+            if (Array.isArray(loc.coordinates)) {
+                lng = loc.coordinates[0];
+                lat = loc.coordinates[1];
+            } else if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+                lat = loc.lat;
+                lng = loc.lng;
+            }
+        }
+        return { lat: lat || 0, lng: lng || 0 };
     }
 
     /**
