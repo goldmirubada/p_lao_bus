@@ -1,7 +1,7 @@
 
 import { Route, RouteStop } from '../supabase/types';
 import { calculateDistance, estimateTimeMinutes, Point } from './geoUtils';
-import { AdjacencyList, GraphEdge, GraphNode, PathResult, PathSegment } from './types';
+import { AdjacencyList, GraphEdge, GraphNode, PathResult, PathSegment, RouteError } from './types';
 
 export class NetworkGraph {
     private stops: Map<string, GraphNode> = new Map();
@@ -19,6 +19,7 @@ export class NetworkGraph {
      * Builds the graph from Supabase data
      */
     public buildGraph(routes: Route[], routeStops: { [routeId: string]: any[] }) {
+        console.log(`NetworkGraph: Building with ${routes.length} routes and ${Object.keys(routeStops).length} route-stop entries.`);
         this.stops.clear();
         this.adjList.clear();
         this.routeNames.clear();
@@ -72,7 +73,8 @@ export class NetworkGraph {
                     routeId: route.id,
                     distanceKm: dist,
                     timeMinutes: time,
-                    cost: 0 // Base cost, monetary handling later
+                    cost: 0, // Base cost, monetary handling later
+                    pathCoordinates: stops[i].path_coordinates // Capture detailed path
                 };
 
                 this.addEdge(edge);
@@ -111,7 +113,7 @@ export class NetworkGraph {
             }
         }
 
-        console.log(`[Graph] Built with ${this.stops.size} nodes.`);
+        console.log(`NetworkGraph: Build Complete. Nodes: ${this.stops.size}, Edges: ${this.adjList.size}`);
     }
 
     private addEdge(edge: GraphEdge) {
@@ -141,7 +143,31 @@ export class NetworkGraph {
     /**
      * Implement Dijkstra's Algorithm
      */
-    public findShortestPath(startLat: number, startLng: number, endLat: number, endLng: number): PathResult | null {
+    /**
+     * Implement Dijkstra's Algorithm
+     */
+    public findShortestPath(startLat: number, startLng: number, endLat: number, endLng: number): PathResult | RouteError {
+        // 0. Pre-checks
+        if (this.stops.size === 0 || this.adjList.size === 0) {
+            return { code: 'SYSTEM_ERROR' };
+        }
+
+        const directDist = calculateDistance({ lat: startLat, lng: startLng }, { lat: endLat, lng: endLng });
+
+        if (directDist < 0.01) {
+            return { code: 'SAME_LOCATION' };
+        }
+
+        if (directDist < 0.5) {
+            return { code: 'TOO_CLOSE' };
+        }
+
+        // Vientiane Rough BBox Checks (Expanded for safety)
+        if (startLat < 17.8 || startLat > 18.2 || startLng < 102.3 || startLng > 102.9 ||
+            endLat < 17.8 || endLat > 18.2 || endLng < 102.3 || endLng > 102.9) {
+            return { code: 'OUT_OF_SERVICE_AREA' };
+        }
+
         // 1. Find nearest start and end nodes (Stops)
         // Real implementation should support "Walking from start to Stop A"
         const startNode = this.findNearestStop(startLat, startLng);
@@ -149,9 +175,11 @@ export class NetworkGraph {
 
         // console.log(`[GraphSearch] Request: (${startLat},${startLng}) -> (${endLat},${endLng})`);
 
-        if (!startNode || !endNode) {
-            console.warn("[GraphSearch] Failed to find start or end nodes within range.");
-            return null;
+        if (!startNode) {
+            return { code: 'START_TOO_FAR' };
+        }
+        if (!endNode) {
+            return { code: 'END_TOO_FAR' };
         }
 
         // Standard Dijkstra Initialization
@@ -205,12 +233,13 @@ export class NetworkGraph {
         }
 
         // Reconstruct Path
-        if (!previous.has(endNode.id)) return null; // No path found
+        if (!previous.has(endNode.id)) {
+            return { code: 'NO_PATH_FOUND' };
+        }
 
         const pathSegments: PathSegment[] = [];
         let curr = endNode.id;
         let totalTime = scores.get(endNode.id) || 0;
-        let transfers = 0;
         let totalDist = 0;
 
         // Add Walk Segment (End)
@@ -224,12 +253,28 @@ export class NetworkGraph {
             const record = previous.get(curr)!;
             const prevEdge = record.edge;
 
-            // Retrieve coordinates for geometry
+            // Retrieve coordinates for geometry (prefer detailed path, fallback to straight line)
             const fromStop = this.stops.get(record.from);
             const toStop = this.stops.get(curr);
-            const segmentGeometry = (fromStop && toStop)
-                ? [{ lat: fromStop.lat, lng: fromStop.lng }, { lat: toStop.lat, lng: toStop.lng }]
-                : [];
+
+            // Clone to avoid mutation
+            let segmentGeometry = prevEdge.pathCoordinates ? [...prevEdge.pathCoordinates] : [];
+
+            if (fromStop && toStop) {
+                if (segmentGeometry.length === 0) {
+                    segmentGeometry = [{ lat: fromStop.lat, lng: fromStop.lng }, { lat: toStop.lat, lng: toStop.lng }];
+                } else {
+                    // Ensure visual connectivity (Stitch start/end if gap > 5m)
+                    const startGap = calculateDistance({ lat: fromStop.lat, lng: fromStop.lng }, segmentGeometry[0]);
+                    if (startGap > 0.005) {
+                        segmentGeometry.unshift({ lat: fromStop.lat, lng: fromStop.lng });
+                    }
+                    const endGap = calculateDistance({ lat: toStop.lat, lng: toStop.lng }, segmentGeometry[segmentGeometry.length - 1]);
+                    if (endGap > 0.005) {
+                        segmentGeometry.push({ lat: toStop.lat, lng: toStop.lng });
+                    }
+                }
+            }
 
             const routeName = this.routeNames.get(prevEdge.routeId) || prevEdge.routeId;
 
@@ -249,6 +294,21 @@ export class NetworkGraph {
         // Add Walk Segment (Start)
         const walkStartDist = calculateDistance({ lat: startLat, lng: startLng }, startNode);
         const walkStartTime = estimateTimeMinutes(walkStartDist, this.WALK_SPEED_KMH);
+
+        const transfers = this.countTransfers(corePath);
+
+        // VALIDATION: Check constraints
+        if (transfers > 4) {
+            return { code: 'TRANSFER_LIMIT_EXCEEDED' };
+        }
+
+        const totalWalkDist = walkStartDist + walkEndDist;
+        const totalTripDist = totalDist + totalWalkDist;
+
+        // If walking is more than 80% AND absolute walk is > 1.5km
+        if (totalWalkDist > 1.5 && (totalWalkDist / totalTripDist) > 0.8) {
+            return { code: 'WALKING_TOO_LONG' };
+        }
 
         // Assemble Full Path
         const fullPath: PathSegment[] = [
@@ -280,8 +340,8 @@ export class NetworkGraph {
         return {
             segments: fullPath,
             totalTimeMinutes: totalTime + walkStartTime + walkEndTime,
-            totalDistanceKm: totalDist + walkStartDist + walkEndDist,
-            transfers: this.countTransfers(corePath)
+            totalDistanceKm: totalTripDist,
+            transfers: transfers
         };
     }
 

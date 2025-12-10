@@ -1,14 +1,18 @@
-
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import { encryptData } from '@/lib/encryption';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function GET() {
     try {
-        // 1. Fetch Routes
-        const { data: routesData, error: routesError } = await supabase
+        // 1. Fetch Routes - order by route_number
+        const { data: routes, error: routesError } = await supabase
             .from('routes')
             .select('*')
             .eq('is_active', true)
@@ -16,85 +20,73 @@ export async function GET() {
 
         if (routesError) throw routesError;
 
-        // 2. Fetch All Stops (Coordinates)
-        const { data: allStopsData, error: stopsError } = await supabase.rpc('get_stops_with_coordinates');
+        // 3. Fetch RouteStops (Standard Select)
+        const { data: routeStopsRaw, error: rsError } = await supabase
+            .from('route_stops')
+            .select(`
+            *,
+            stops (*)
+        `)
+            .order('sequence_order');
 
-        if (stopsError) {
-            console.error('Error fetching stops:', stopsError);
-            throw stopsError;
-        }
+        if (rsError) throw rsError;
 
-        const stopLocationMap = new Map();
-        if (allStopsData) {
-            allStopsData.forEach((stop: any) => {
-                stopLocationMap.set(stop.id, { lat: stop.lat, lng: stop.lng });
-            });
-        }
+        // Helper to parse PostGIS EWKB Hex String for Points
+        const parseWKBPoint = (hex: string): { lat: number, lng: number } | null => {
+            try {
+                // Determine buffer based on environment (Node)
+                const buffer = Buffer.from(hex, 'hex');
+                // Offset 9: Lng (X), Offset 17: Lat (Y) - Little Endian Doubles
+                const lng = buffer.readDoubleLE(9);
+                const lat = buffer.readDoubleLE(17);
+                return { lat, lng };
+            } catch (e) {
+                return null;
+            }
+        };
 
-        // 3. Fetch Route Stops and Join Data
-        let routeStopsData: any = {};
+        // 4. Group by Route ID
+        const routeStopsGrouped: { [key: string]: any[] } = {};
+        if (routeStopsRaw) {
+            routeStopsRaw.forEach((rs: any) => {
+                if (!rs.route_id) return;
 
-        if (routesData) {
-            const promises = routesData.map(async (route) => {
-                const { data, error } = await supabase
-                    .from('route_stops')
-                    .select('*, stops(*)')
-                    .eq('route_id', route.id)
-                    .order('sequence_order');
-
-                if (error) {
-                    console.error(`Error fetching stops for route ${route.id}:`, error);
-                    return null;
-                }
-
-                if (data) {
-                    const stopsWithCoords = data.map((rs: any) => {
-                        // Safety check if stops is null
-                        if (!rs.stops) return rs;
-
-                        const coords = stopLocationMap.get(rs.stops.id);
+                // Parse coordinates from WKB location
+                if (rs.stops && rs.stops.location) {
+                    if (typeof rs.stops.location === 'string') {
+                        // Handle Hex String (WKB)
+                        const coords = parseWKBPoint(rs.stops.location);
                         if (coords) {
-                            // Enhance stop object with location data
-                            rs.stops.location = {
-                                type: 'Point',
-                                coordinates: [coords.lng, coords.lat]
-                            };
                             rs.stops.lat = coords.lat;
                             rs.stops.lng = coords.lng;
                         }
-                        return rs;
-                    });
-                    return { routeId: route.id, data: stopsWithCoords };
+                    } else if (typeof rs.stops.location === 'object' && rs.stops.location.coordinates) {
+                        // Handle if it IS GeoJSON (backup)
+                        rs.stops.lng = rs.stops.location.coordinates[0];
+                        rs.stops.lat = rs.stops.location.coordinates[1];
+                    }
                 }
-                return null;
-            });
 
-            const results = await Promise.all(promises);
-
-            results.forEach(result => {
-                if (result) {
-                    routeStopsData[result.routeId] = result.data;
+                if (!routeStopsGrouped[rs.route_id]) {
+                    routeStopsGrouped[rs.route_id] = [];
                 }
+                routeStopsGrouped[rs.route_id].push(rs);
             });
         }
 
-        const fullData = {
-            routes: routesData,
-            routeStops: routeStopsData
+        // Combine
+        const rawData = {
+            routes,
+            routeStops: routeStopsGrouped
         };
 
-        // 4. Encrypt the payload
-        const encryptedPayload = encryptData(fullData);
-        // const encryptedPayload = "TEST_DISABLED_ENCRYPTION";
+        // Encrypt
+        const encryptedPayload = encryptData(rawData);
 
-        // Return only the encrypted string
         return NextResponse.json({ payload: encryptedPayload });
 
-    } catch (error) {
-        console.error('API Route Error Detailed:', error);
-        return NextResponse.json({
-            error: 'Internal Server Error',
-            details: error instanceof Error ? error.message : String(error)
-        }, { status: 500 });
+    } catch (error: any) {
+        console.error('API Error:', error);
+        return NextResponse.json({ error: 'Failed to fetch map data', details: error.message }, { status: 500 });
     }
 }

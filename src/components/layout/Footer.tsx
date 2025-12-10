@@ -10,9 +10,9 @@ export default function Footer() {
 
     return (
         <>
-            <footer className="bg-slate-50 border-t border-slate-200 py-8 mt-auto">
+            <footer className="bg-slate-50 border-t border-slate-200 py-4 mt-auto">
                 <div className="max-w-7xl mx-auto px-4 text-center">
-                    <div className="flex justify-center gap-6 mb-4 text-sm text-slate-500">
+                    <div className="flex justify-center gap-4 mb-2 text-xs text-slate-500">
                         <button
                             onClick={() => setIsPrivacyOpen(true)}
                             className="hover:text-slate-800 transition-colors"
@@ -32,11 +32,8 @@ export default function Footer() {
                             {t('contact_us') || '문의하기'}
                         </a>
                     </div>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-[10px] text-slate-400">
                         &copy; {new Date().getFullYear()} Lao Bus Route Map. All rights reserved.
-                    </p>
-                    <p className="text-[10px] text-slate-300 mt-2">
-                        v1.0.0 (Beta)
                     </p>
                 </div>
             </footer>

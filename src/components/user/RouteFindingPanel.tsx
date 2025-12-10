@@ -5,7 +5,7 @@ import { X, MapPin, Navigation, Bus, Clock, RefreshCw, Map as MapIcon, RotateCcw
 import { Stop, Route } from '@/lib/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { NetworkGraph } from '@/lib/graph/NetworkGraph';
-import { PathResult } from '@/lib/graph/types';
+import { PathResult, RouteError } from '@/lib/graph/types';
 
 interface RouteFindingPanelProps {
     isOpen: boolean;
@@ -27,7 +27,7 @@ export default function RouteFindingPanel({
     isOpen,
     onClose,
     userLocation,
-    stops,
+    stops = [],
     graphEngine,
     onPathFound,
     onSelectOnMap,
@@ -36,7 +36,7 @@ export default function RouteFindingPanel({
     setStartPoint,
     endPoint,
     setEndPoint,
-    routes
+    routes = []
 }: RouteFindingPanelProps) {
     const { t, language } = useLanguage();
 
@@ -131,9 +131,18 @@ export default function RouteFindingPanel({
             }
         }
 
-        const endCoords = (endPoint.location as any).coordinates;
-        const endLat = endCoords[1];
-        const endLng = endCoords[0];
+        let endLat, endLng;
+        const endLoc = endPoint.location as any;
+        if (Array.isArray(endLoc.coordinates)) {
+            endLat = endLoc.coordinates[1];
+            endLng = endLoc.coordinates[0];
+        } else if (endLoc.lat) {
+            endLat = endLoc.lat;
+            endLng = endLoc.lng;
+        } else {
+            console.error("Invalid End Point Location Format:", endPoint.location);
+            return;
+        }
 
         setIsCalculating(true);
         setErrorMsg(null);
@@ -150,11 +159,17 @@ export default function RouteFindingPanel({
                 console.timeEnd('RouteCalc');
                 console.log('[Algorithm Output] Result:', result);
 
-                if (result) {
-                    setPathResult(result);
-                    onPathFound(result);
+                if (result && 'code' in result) {
+                    // It is a RouteError
+                    const errorKey = `error_${(result as RouteError).code.toLowerCase()}`;
+                    console.warn(`[Algorithm Output] Error: ${(result as RouteError).code}`);
+                    setErrorMsg(t(errorKey as any));
+                } else if (result) {
+                    // It is a PathResult
+                    setPathResult(result as PathResult);
+                    onPathFound(result as PathResult);
                 } else {
-                    console.warn('[Algorithm Output] Result is null - No Route Found');
+                    console.warn('[Algorithm Output] Result is null - No Route Found (Fallback)');
                     setErrorMsg(t('no_route_found' as any));
                 }
             } catch (err) {
@@ -431,7 +446,8 @@ export default function RouteFindingPanel({
                                                             </>
                                                         ) : (
                                                             (() => {
-                                                                const route = routes.find(r => r.id === segment.routeId);
+                                                                const safeRoutes = routes || [];
+                                                                const route = safeRoutes.find(r => r.id === segment.routeId);
                                                                 const routeColor = route?.route_color || '#16a34a';
                                                                 return (
                                                                     <>

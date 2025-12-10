@@ -475,7 +475,7 @@ export default function RouteStopEditor() {
                                 }))
                             }}
                             selectableStops={allStops}
-                            onStopSelect={handleAddStop}
+                            onStopSelect={(stop) => handleAddStop(stop.id)}
                         />
                     </div>
                 </div>

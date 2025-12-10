@@ -9,7 +9,7 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig: NextConfig = {
-  // output: 'export', // WARN: API Routes not supported in static export. Enable only for mobile build.
+  output: 'export', // WARN: API Routes not supported in static export. Enable only for mobile build.
   images: {
     unoptimized: true,
   },

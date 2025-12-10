@@ -27,6 +27,8 @@ export type Stop = {
     schematic_y: number | null;
     image_url: string | null;
     description: string | null;
+    lat?: number; // Optional runtime property from WKB parsing
+    lng?: number; // Optional runtime property from WKB parsing
     created_at: string;
     updated_at: string;
 };
@@ -54,4 +56,8 @@ export type Feedback = {
     created_at: string;
     // Joins
     stops?: Stop;
+};
+
+export type RouteStopWithDetail = RouteStop & {
+    stops: Stop;
 };

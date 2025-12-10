@@ -32,8 +32,21 @@ export default function NearMePanel({
 
         return stops
             .map(stop => {
-                const stopLat = (stop.location as any).coordinates[1];
-                const stopLng = (stop.location as any).coordinates[0];
+                let stopLat: number | undefined;
+                let stopLng: number | undefined;
+
+                if (typeof stop.lat === 'number' && typeof stop.lng === 'number') {
+                    stopLat = stop.lat;
+                    stopLng = stop.lng;
+                } else if ((stop.location as any)?.coordinates && Array.isArray((stop.location as any).coordinates)) {
+                    stopLng = (stop.location as any).coordinates[0];
+                    stopLat = (stop.location as any).coordinates[1];
+                }
+
+                if (stopLat === undefined || stopLng === undefined) {
+                    return { ...stop, distance: Infinity }; // Mark invalid to filter later
+                }
+
                 const distance = calculateDistance(
                     userLocation.latitude,
                     userLocation.longitude,
@@ -42,6 +55,7 @@ export default function NearMePanel({
                 );
                 return { ...stop, distance };
             })
+            .filter(stop => stop.distance !== Infinity)
             .sort((a, b) => a.distance - b.distance)
             .slice(0, 3);
     }, [userLocation, stops]);
