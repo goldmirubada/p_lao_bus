@@ -105,6 +105,7 @@ export default function MainPanel({
                         toggleFavorite={toggleFavorite}
                         alarmTargetStop={alarmTargetStop}
                         isAlarmActive={isAlarmActive}
+                        userLocation={userLocation}
                     />
                 </div>
                 <div className={`flex-col h-full ${activeTab === 'route' ? 'flex' : 'hidden'}`}>

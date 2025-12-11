@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, CSSProperties } from 'react';
 import { Search as SearchIcon, X, MapPin, ChevronDown, Check, Star, Info, Bell } from 'lucide-react';
 import { Route, Stop, RouteStopWithDetail } from '@/lib/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { calculateDistance } from '@/lib/graph/geoUtils';
 
 interface SearchTabProps {
     routes: Route[];
@@ -16,7 +17,10 @@ interface SearchTabProps {
     toggleFavorite: (routeId: string) => void;
     alarmTargetStop?: Stop | null;
     isAlarmActive?: boolean;
+    userLocation?: GeolocationCoordinates | null;
 }
+
+import { Capacitor } from '@capacitor/core';
 
 export default function SearchTab({
     routes,
@@ -28,13 +32,20 @@ export default function SearchTab({
     isFavorite,
     toggleFavorite,
     alarmTargetStop,
-    isAlarmActive
+    isAlarmActive,
+    userLocation
 }: SearchTabProps) {
     const { t } = useLanguage();
     const [query, setQuery] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const [isApp, setIsApp] = useState(false);
+    const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({});
+
+    useEffect(() => {
+        setIsApp(Capacitor.isNativePlatform());
+    }, []);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -79,7 +90,7 @@ export default function SearchTab({
     return (
         <div className="flex flex-col h-full bg-slate-50">
             {/* Custom Route Selector */}
-            <div className="p-4 bg-white border-b border-slate-200 z-40 relative" ref={dropdownRef}>
+            <div className="p-4 bg-white border-b border-slate-200 z-40 relative">
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold text-slate-800 border-l-4 border-blue-600 pl-2">
                         {t('all_routes_map') || '전체 노선도'}
@@ -93,10 +104,24 @@ export default function SearchTab({
                     </button>
                 </div>
 
-                <div className="relative">
+                <div className="relative" ref={dropdownRef}>
                     {/* Trigger Button */}
                     <button
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        onClick={() => {
+                            if (!isDropdownOpen && isApp && dropdownRef.current) {
+                                const rect = dropdownRef.current.getBoundingClientRect();
+                                const availableHeight = window.innerHeight - rect.bottom - 20; // 20px padding
+                                setDropdownStyle({
+                                    position: 'fixed',
+                                    top: `${rect.bottom}px`,
+                                    left: `${rect.left}px`,
+                                    width: `${rect.width}px`,
+                                    maxHeight: `${Math.max(200, availableHeight)}px`, // Minimum 200px or available space
+                                    zIndex: 9999, // Ensure it's on top
+                                });
+                            }
+                            setIsDropdownOpen(!isDropdownOpen);
+                        }}
                         className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all text-left"
                     >
                         <div className="flex items-center gap-3">
@@ -121,7 +146,10 @@ export default function SearchTab({
 
                     {/* Dropdown Options */}
                     {isDropdownOpen && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 max-h-[400px] overflow-y-auto animate-fadeIn z-[100]">
+                        <div
+                            className={`bg-white rounded-xl shadow-xl border border-slate-100 overflow-y-auto animate-fadeIn z-[100] ${!isApp ? 'absolute top-full left-0 right-0 mt-2 max-h-[400px]' : ''}`}
+                            style={isApp ? dropdownStyle : {}}
+                        >
                             {/* Option: All Routes */}
                             <button
                                 onClick={() => {
@@ -224,7 +252,7 @@ export default function SearchTab({
                         {filteredResults.routes.length > 0 && (
                             <div className="bg-white mb-2">
                                 <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-100">
-                                    {t('route_info') || '노선'} ({filteredResults.routes.length})
+                                    {t('route_info') || '노선'}({filteredResults.routes.length})
                                 </div>
                                 {filteredResults.routes.map(route => (
                                     <button
@@ -255,7 +283,7 @@ export default function SearchTab({
                         {filteredResults.stops.length > 0 && (
                             <div className="bg-white">
                                 <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-100">
-                                    {t('total_stops') || '정류장'} ({filteredResults.stops.length})
+                                    {t('total_stops') || '정류장'}({filteredResults.stops.length})
                                 </div>
                                 {filteredResults.stops.map(stop => (
                                     <button
@@ -310,35 +338,83 @@ export default function SearchTab({
 
                                     const route = routes.find(r => r.id === selectedRoute);
 
+                                    // Calculate Nearest Stop
+                                    let nearestStopId: string | null = null;
+                                    let minDistance = Infinity;
+
+                                    if (userLocation) {
+                                        uniqueStopList.forEach(rs => {
+                                            let lat: number | null = null;
+                                            let lng: number | null = null;
+
+                                            // Check top-level lat/lng first
+                                            if (typeof rs.stops.lat === 'number' && typeof rs.stops.lng === 'number') {
+                                                lat = rs.stops.lat;
+                                                lng = rs.stops.lng;
+                                            }
+                                            // Fallback to location object if present
+                                            else if (rs.stops.location) {
+                                                const loc = rs.stops.location as any;
+                                                if (loc.coordinates && Array.isArray(loc.coordinates)) {
+                                                    lng = loc.coordinates[0];
+                                                    lat = loc.coordinates[1];
+                                                } else if (typeof loc.lat === 'number') {
+                                                    lat = loc.lat;
+                                                    lng = loc.lng;
+                                                }
+                                            }
+
+                                            if (lat !== null && lng !== null) {
+                                                const dist = calculateDistance(
+                                                    { lat: userLocation.latitude, lng: userLocation.longitude },
+                                                    { lat, lng }
+                                                );
+
+                                                if (dist < minDistance) {
+                                                    minDistance = dist;
+                                                    nearestStopId = rs.stops.id;
+                                                }
+                                            }
+                                        });
+                                    }
+
                                     return (
                                         <div className="space-y-0 relative">
                                             {/* Vertical Line */}
                                             {uniqueStopList.length > 1 && (
                                                 <div
-                                                    className="absolute left-6 top-8 bottom-8 w-1 -z-10 opacity-30"
+                                                    className="absolute left-7 top-8 bottom-8 w-1 -z-10 opacity-30"
                                                     style={{ backgroundColor: route?.route_color || '#cbd5e1' }}
                                                 ></div>
                                             )}
 
                                             {uniqueStopList.map((rs, index) => {
                                                 const isAlarmSet = isAlarmActive && alarmTargetStop?.id === rs.stops?.id;
+                                                const isNearest = rs.stops.id === nearestStopId;
 
                                                 return (
                                                     <div key={rs.id} className="relative flex items-center group">
                                                         <button
                                                             onClick={() => onStopSelect(rs.stops)}
-                                                            className={`flex items-center gap-4 p-3 w-full hover:bg-white hover:shadow-sm rounded-xl transition-all border ${isAlarmSet ? 'bg-red-50 border-red-200' : 'border-transparent hover:border-slate-100'}`}
+                                                            className={`flex items-center gap-4 p-3 w-full hover:bg-white hover:shadow-sm rounded-xl transition-all border ${isAlarmSet ? 'bg-red-50 border-red-200' : isNearest ? 'bg-blue-50 border-blue-200 shadow-sm' : 'border-transparent hover:border-slate-100'}`}
                                                         >
                                                             <div
-                                                                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-md flex-shrink-0 ring-4 ring-slate-50 group-hover:ring-white transition-all text-sm relative"
+                                                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md flex-shrink-0 ring-2 transition-all text-xs relative ${isNearest ? 'ring-blue-100 scale-105' : 'ring-slate-50 group-hover:ring-white'}`}
                                                                 style={{ backgroundColor: route?.route_color || '#64748b' }}
                                                             >
                                                                 {index + 1}
                                                             </div>
 
                                                             <div className="flex-1 text-left overflow-hidden">
-                                                                <div className="font-semibold text-slate-800 text-sm truncate group-hover:text-blue-600 transition-colors">
-                                                                    {rs.stops?.stop_name}
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={`font-semibold text-sm truncate transition-colors ${isNearest ? 'text-blue-700' : 'text-slate-800 group-hover:text-blue-600'}`}>
+                                                                        {rs.stops?.stop_name}
+                                                                    </div>
+                                                                    {isNearest && (
+                                                                        <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold border border-blue-200 whitespace-nowrap animate-pulse">
+                                                                            {t('nearest') || '현위치'}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                                 {rs.stops?.stop_name_en && (
                                                                     <div className="text-xs text-slate-500 truncate">
@@ -347,11 +423,19 @@ export default function SearchTab({
                                                                 )}
                                                             </div>
 
-                                                            {isAlarmSet ? (
+                                                            {isAlarmSet && (
                                                                 <div className="flex-shrink-0 text-red-500 animate-pulse bg-red-100 p-2 rounded-full">
                                                                     <Bell size={18} className="fill-current" />
                                                                 </div>
-                                                            ) : (
+                                                            )}
+
+                                                            {!isAlarmSet && isNearest && (
+                                                                <div className="flex-shrink-0 text-blue-500 bg-blue-100 p-2 rounded-full shadow-sm">
+                                                                    <MapPin size={16} className="fill-current" />
+                                                                </div>
+                                                            )}
+
+                                                            {!isAlarmSet && !isNearest && (
                                                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                                     <MapPin size={16} className="text-blue-500" />
                                                                 </div>
@@ -376,6 +460,6 @@ export default function SearchTab({
                     )
                 )}
             </div>
-        </div>
+        </div >
     );
 }

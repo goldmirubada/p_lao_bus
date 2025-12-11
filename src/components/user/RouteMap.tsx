@@ -380,7 +380,7 @@ export default function RouteMap({
                 if (highlightedPath.segments.length > 0) {
                     const startSeg = highlightedPath.segments[0];
                     if (startSeg.geometry.length > 0) {
-                        new Marker({
+                        const startMarker = new Marker({
                             position: startSeg.geometry[0],
                             map: mapInstanceRef.current,
                             icon: {
@@ -394,10 +394,11 @@ export default function RouteMap({
                             title: 'Start',
                             zIndex: 101
                         });
+                        selectedPointMarkersRef.current.push(startMarker);
                     }
                     const endSeg = highlightedPath.segments[highlightedPath.segments.length - 1];
                     if (endSeg.geometry.length > 0) {
-                        new Marker({
+                        const endMarker = new Marker({
                             position: endSeg.geometry[endSeg.geometry.length - 1],
                             map: mapInstanceRef.current,
                             icon: {
@@ -411,6 +412,7 @@ export default function RouteMap({
                             title: 'End',
                             zIndex: 101
                         });
+                        selectedPointMarkersRef.current.push(endMarker);
                     }
                 }
 

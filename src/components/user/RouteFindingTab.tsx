@@ -98,12 +98,14 @@ export default function RouteFindingTab({
 
         let startLat, startLng;
 
-        if (!startPoint) {
-            setErrorMsg(t('select_origin' as any) || '출발지를 선택해주세요.');
-            return;
+        let effectiveStart = startPoint;
+
+        if (!effectiveStart) {
+            effectiveStart = 'current';
+            setStartPoint('current');
         }
 
-        if (startPoint === 'current') {
+        if (effectiveStart === 'current') {
             if (!userLocation) {
                 setErrorMsg(t('location_needed' as any) || '현재 위치를 가져올 수 없습니다.');
                 return;
@@ -111,16 +113,16 @@ export default function RouteFindingTab({
             startLat = userLocation.latitude;
             startLng = userLocation.longitude;
         } else {
-            const coords = (startPoint.location as any).coordinates;
+            const coords = (effectiveStart.location as any).coordinates;
             // Check formatted coordinates
             if (Array.isArray(coords)) {
                 startLat = coords[1];
                 startLng = coords[0];
-            } else if ((startPoint.location as any).lat) {
-                startLat = (startPoint.location as any).lat;
-                startLng = (startPoint.location as any).lng;
+            } else if ((effectiveStart.location as any).lat) {
+                startLat = (effectiveStart.location as any).lat;
+                startLng = (effectiveStart.location as any).lng;
             } else {
-                console.error("Invalid Start Point Location Format:", startPoint.location);
+                console.error("Invalid Start Point Location Format:", effectiveStart.location);
                 return;
             }
         }
@@ -361,7 +363,7 @@ export default function RouteFindingTab({
             </div>
 
             {/* Results Area */}
-            <div className="flex-1 lg:overflow-y-auto p-4 space-y-4 flex flex-col">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
                 {pathResult ? (
                     <div className="animate-fadeIn space-y-4 pb-20">
                         {/* Summary Card */}

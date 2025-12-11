@@ -19,11 +19,13 @@ export function useGeolocation() {
         loading: true,
     });
 
-    useEffect(() => {
+    const getLocation = () => {
         if (!navigator.geolocation) {
             setState(prev => ({ ...prev, error: 'Geolocation is not supported', loading: false }));
             return;
         }
+
+        setState(prev => ({ ...prev, loading: true, error: null }));
 
         const handleSuccess = (position: GeolocationPosition) => {
             setState({
@@ -45,22 +47,16 @@ export function useGeolocation() {
             }));
         };
 
-        // Initial fetch
         navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
             enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
+            timeout: 15000,
+            maximumAge: 10000
         });
+    };
 
-        // Watch for updates
-        const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        });
-
-        return () => navigator.geolocation.clearWatch(watchId);
+    useEffect(() => {
+        getLocation();
     }, []);
 
-    return state;
+    return { ...state, retry: getLocation };
 }

@@ -23,6 +23,9 @@ import { NetworkGraph } from '@/lib/graph/NetworkGraph';
 import { PathResult } from '@/lib/graph/types';
 import MainPanel from '@/components/user/MainPanel';
 import { calculateDistance } from '@/lib/graph/geoUtils';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import PrivacyPolicyModal from '@/components/legal/PrivacyPolicyModal';
+import { MoreVertical, Globe, FileText, Mail, Shield, ChevronRight } from 'lucide-react';
 
 const RouteMap = dynamic(() => import('@/components/user/RouteMap'), { ssr: false });
 
@@ -51,9 +54,33 @@ export default function SchematicMap() {
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { location: userLocation, loading: locationLoading, error: locationError } = useGeolocation();
+  const { location: userLocation, loading: locationLoading, error: locationError, retry: retryLocation } = useGeolocation();
+
+  // App Specific State
+  const [isApp, setIsApp] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
+
+  useEffect(() => {
+    setIsApp(Capacitor.isNativePlatform());
+  }, []);
+
+  const languages = [
+    { code: 'ko', flagCode: 'kr', label: '한국어' },
+    { code: 'lo', flagCode: 'la', label: 'ລາວ' },
+    { code: 'en', flagCode: 'us', label: 'English' },
+    { code: 'cn', flagCode: 'cn', label: '中文' },
+    { code: 'th', flagCode: 'th', label: 'ไทย' },
+    { code: 'vi', flagCode: 'vn', label: 'Tiếng Việt' },
+    { code: 'km', flagCode: 'kh', label: 'ខ្មែរ' },
+    { code: 'fr', flagCode: 'fr', label: 'Français' },
+    { code: 'es', flagCode: 'es', label: 'Español' },
+    { code: 'ar', flagCode: 'sa', label: 'العربية' },
+    { code: 'jp', flagCode: 'jp', label: '日本語' },
+  ] as const;
 
   // Initialize Graph Engine
   const graphEngine = useMemo(() => new NetworkGraph(), []);
@@ -118,25 +145,26 @@ export default function SchematicMap() {
     try {
       setLoading(true);
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiBase}/api/map-data`, { cache: 'no-store' });
+      let apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API Error Details:', errorData);
-        throw new Error(errorData.details || `API Error: ${response.status}`);
+      // Android 에뮬레이터에서 localhost 접속 문제 해결
+      if (!apiBase && Capacitor.getPlatform() === 'android') {
+        apiBase = 'http://10.0.2.2:3000';
       }
+
+      // Remove trailing slash if present to avoid double slashes
+      if (apiBase.endsWith('/')) {
+        apiBase = apiBase.slice(0, -1);
+      }
+
+      // API에서 암호화된 데이터 가져오기
+      const response = await fetch(`${apiBase}/api/map-data`);
+      if (!response.ok) throw new Error('Failed to fetch map data');
 
       const { payload } = await response.json();
-      if (!payload) throw new Error('No payload received');
+      const secretKey = await getSecureKeyFromWasm();
 
-      let secretKey = '';
-      try {
-        secretKey = await getSecureKeyFromWasm();
-      } catch (e) {
-        console.error('WASM Load Failed', e);
-        throw new Error('Security Module Error');
-      }
+      if (!payload) throw new Error('Empty payload received');
 
       const decryptedData = decryptData(payload, secretKey);
       if (!decryptedData) throw new Error('Decryption failed');
@@ -147,14 +175,26 @@ export default function SchematicMap() {
         // Graph will be built by useEffect
       }
 
+      let activeRoutes: Route[] = [];
       if (routesData) {
-        setRoutes(routesData);
-        localStorage.setItem('cached_routes', JSON.stringify(routesData));
+        // Filter only active routes
+        activeRoutes = routesData.filter((r: Route) => r.is_active !== false);
+        setRoutes(activeRoutes);
+        localStorage.setItem('cached_routes', JSON.stringify(activeRoutes));
       }
 
       if (stopsData) {
-        setRouteStops(stopsData);
-        localStorage.setItem('cached_stop_data', JSON.stringify(stopsData));
+        // Filter stops for active routes only
+        const activeRouteIds = new Set(activeRoutes.map(r => r.id));
+        const filteredStopsData = Object.keys(stopsData)
+          .filter(routeId => activeRouteIds.has(routeId))
+          .reduce((obj, key) => {
+            obj[key] = stopsData[key];
+            return obj;
+          }, {} as { [key: string]: RouteStopWithDetail[] });
+
+        setRouteStops(filteredStopsData);
+        localStorage.setItem('cached_stop_data', JSON.stringify(filteredStopsData));
       }
 
     } catch (error) {
@@ -163,8 +203,20 @@ export default function SchematicMap() {
       const cachedStops = localStorage.getItem('cached_stop_data');
 
       if (cachedRoutes && cachedStops) {
-        setRoutes(JSON.parse(cachedRoutes));
-        setRouteStops(JSON.parse(cachedStops));
+        const parsedRoutes = JSON.parse(cachedRoutes).filter((r: Route) => r.is_active !== false);
+        setRoutes(parsedRoutes);
+
+        const parsedStops = JSON.parse(cachedStops);
+        // Also re-filter cached stops just in case cache has stale data
+        const activeRouteIds = new Set(parsedRoutes.map((r: Route) => r.id));
+        const filteredCachedStops = Object.keys(parsedStops)
+          .filter(routeId => activeRouteIds.has(routeId))
+          .reduce((obj, key) => {
+            obj[key] = parsedStops[key];
+            return obj;
+          }, {} as { [key: string]: RouteStopWithDetail[] });
+
+        setRouteStops(filteredCachedStops);
         console.log('Loaded data from offline cache');
       }
     } finally {
@@ -173,6 +225,25 @@ export default function SchematicMap() {
   };
 
   if (loading) {
+    if (isApp) {
+      return (
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8">
+          <div className="flex-1 flex flex-col items-center justify-center w-full max-w-[280px]">
+            <img
+              src="/app-logo.png"
+              alt="Lao Bus"
+              className="w-32 h-32 mb-8 object-contain animate-fadeIn"
+            />
+            <h1 className="text-2xl font-bold text-slate-800 mb-2 text-center animate-slideUp">Laos Bus Route Map</h1>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-8 max-w-[200px]">
+              <div className="h-full bg-blue-600 animate-loading-bar rounded-full"></div>
+            </div>
+            <p className="text-slate-400 text-sm mt-4 animate-pulse">{t('map_loading_text') || 'Loading...'}</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
@@ -184,34 +255,38 @@ export default function SchematicMap() {
   }
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-gradient-to-br from-blue-50 to-slate-100 flex flex-col">
+
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-blue-50 to-slate-100 flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-2 sm:py-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="bg-blue-600 p-1 rounded-md">
-                <svg className="w-4 h-4 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                </svg>
+      {/* Header (Web Only) */}
+      {!isApp && (
+        <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-50 shrink-0">
+          <div className="container mx-auto px-4 py-2 sm:py-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="bg-blue-600 p-1 rounded-md">
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                </div>
+
+                <div>
+                  <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-none">{t('title')}</h1>
+                  <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5">Laos Bus Route Map</p>
+                </div>
               </div>
 
-              <div>
-                <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-none">{t('title')}</h1>
-                <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5">Laos Bus Route Map</p>
+              <div className="flex items-center gap-2">
+                <LanguageSwitcher />
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <LanguageSwitcher />
             </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Alarm Status Banner */}
       {isAlarmActive && alarmTargetStop && (
-        <div className="bg-blue-600 text-white p-3 text-sm flex items-center justify-between animate-fadeIn px-4 z-20">
+        <div className="bg-blue-600 text-white p-3 text-sm flex items-center justify-between animate-fadeIn px-4 z-20 shrink-0">
           <div className="flex items-center gap-2">
             <span className="animate-pulse">🔔</span>
             <span>{t('stop_alarm_monitoring')}: <strong>{alarmTargetStop.stop_name}</strong></span>
@@ -226,7 +301,7 @@ export default function SchematicMap() {
       )}
 
       {/* Main Content Area */}
-      <div className="container mx-auto px-4 py-2 sm:py-4 flex-1 w-full flex flex-col min-h-0">
+      <div className="container mx-auto px-0 sm:px-4 py-2 sm:py-4 flex-1 w-full flex flex-col min-h-0 overflow-hidden">
         {routes.length === 0 ? (
           <div className="bg-white rounded-xl shadow-lg p-12 text-center my-auto">
             <div className="text-6xl mb-4">🚍</div>
@@ -234,45 +309,14 @@ export default function SchematicMap() {
             <p className="text-slate-600">{t('no_routes_desc') || 'Please add routes in admin panel.'}</p>
           </div>
         ) : (
-          <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 flex-1 lg:h-full">
-            {/* Left Column: Tabs */}
-            <div className="w-full lg:col-span-1 h-auto lg:h-full min-h-0">
-              <MainPanel
-                userLocation={userLocation as any}
-                stops={allUniqueStops}
-                routes={routes}
-                routeStops={routeStops}
-                graphEngine={graphEngine}
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                onRouteSelect={(routeId: string) => {
-                  setSelectedRoute(routeId);
-                }}
-                onStopSelect={(stop: Stop) => {
-                  setSelectedStop(stop);
-                }}
-                onPathFound={(path: PathResult | null) => setCurrentPath(path)}
-                onSelectOnMap={(type: 'start' | 'end') => setSelectingRoutePoint(type)}
-                selectingType={selectingRoutePoint}
-                startPoint={startRoutePoint}
-                setStartPoint={setStartRoutePoint}
-                endPoint={endRoutePoint}
-                setEndPoint={setEndRoutePoint}
-                selectedRoute={selectedRoute}
-                isFavorite={isFavorite}
-                toggleFavorite={toggleFavorite}
-                alarmTargetStop={alarmTargetStop}
-                isAlarmActive={isAlarmActive}
-              />
-            </div>
-
-            {/* Right Column: Route Map */}
-            <div className="w-full lg:col-span-2 h-[500px] lg:h-full min-h-0">
-              <div className="bg-white rounded-xl shadow-lg p-6 h-full flex flex-col">
-                <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 shrink-0">
+          <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6 h-full">
+            {/* Right Column: Route Map (Top on Mobile) */}
+            <div className="w-full lg:col-span-2 min-h-0 lg:order-2 h-[40vh] lg:h-full shrink-0">
+              <div className="bg-white rounded-xl shadow-lg p-3 sm:p-6 h-full flex flex-col">
+                <div className="flex items-center justify-between mb-2 pb-2 sm:mb-6 sm:pb-4 border-b border-slate-200 shrink-0">
                   <div className="flex-1 flex items-center overflow-hidden">
                     {selectedRoute === 'all' ? (
-                      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <h3 className="text-base lg:text-xl font-bold text-slate-800 flex items-center gap-2">
                         <MapPin className="text-blue-600" />
                         {t('all_routes_map')}
                       </h3>
@@ -288,22 +332,85 @@ export default function SchematicMap() {
                               >
                                 {r.route_number}
                               </div>
-                              <h3 className="text-lg sm:text-lg font-bold text-slate-800 truncate">
+                              <h3 className="text-base lg:text-xl font-bold text-slate-800 truncate">
                                 {r.route_name}
                               </h3>
                             </>
                           ) : (
-                            <h3 className="text-xl font-bold text-slate-800">{t('route_info')}</h3>
+                            <h3 className="text-base lg:text-xl font-bold text-slate-800">{t('route_info')}</h3>
                           );
                         })()}
                       </div>
                     )}
                   </div>
+                  {/* App Menu Button */}
+                  {isApp && (
+                    <div className="relative z-50">
+                      <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className="p-2 -mr-2 text-slate-600 hover:text-slate-900 active:bg-slate-100 rounded-full transition-colors"
+                      >
+                        <MoreVertical size={24} />
+                      </button>
+
+                      {isMenuOpen && (
+                        <>
+                          <div className="fixed inset-0 z-[60]" onClick={() => setIsMenuOpen(false)} />
+                          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-slate-100 py-2 z-[70] animate-in fade-in zoom-in-95 duration-200">
+                            <button
+                              onClick={() => {
+                                setIsLanguageModalOpen(true);
+                                setIsMenuOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 flex items-center gap-3 border-b border-slate-50"
+                            >
+                              <Globe size={18} className="text-blue-500" />
+                              <span className="flex-1 text-sm font-medium">{t('language') || 'Language'}</span>
+                              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{language.toUpperCase()}</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setIsPrivacyOpen(true);
+                                setIsMenuOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 flex items-center gap-3"
+                            >
+                              <Shield size={18} className="text-slate-400" />
+                              <span className="text-sm">{t('privacy_policy') || 'Privacy Policy'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setIsPrivacyOpen(true);
+                                setIsMenuOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 flex items-center gap-3"
+                            >
+                              <FileText size={18} className="text-slate-400" />
+                              <span className="text-sm">{t('terms_of_service') || 'Terms'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                window.open('mailto:goldmiru.bada@gmail.com');
+                                setIsMenuOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 flex items-center gap-3"
+                            >
+                              <Mail size={18} className="text-slate-400" />
+                              <span className="text-sm">{t('contact_us') || 'Contact'}</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Google Maps Route Display */}
                 <div className="relative flex-1 flex flex-col lg:h-full">
-                  <div className="relative flex-1 h-full min-h-[300px] mb-6 rounded-xl overflow-hidden shadow-inner border border-slate-100">
+                  <div className="relative flex-1 h-full min-h-[200px] mb-0 sm:mb-6 rounded-xl overflow-hidden shadow-inner border border-slate-100">
                     {/* Floating Report Button */}
                     <button
                       onClick={() => {
@@ -315,6 +422,24 @@ export default function SchematicMap() {
                       <AlertTriangle size={16} />
                       <span className="text-xs font-bold whitespace-nowrap">{t('report_issue_btn') || '잘못된 정보 신고'}</span>
                     </button>
+                    {/* Map Selection Instruction Banner */}
+                    {selectingRoutePoint && (
+                      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/90 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3 animate-slideDown backdrop-blur-sm border border-slate-700/50">
+                        <div className={`w-2 h-2 rounded-full ${selectingRoutePoint === 'start' ? 'bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]' : 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]'}`} />
+                        <span className="font-bold text-sm whitespace-nowrap">
+                          {selectingRoutePoint === 'start'
+                            ? (t('select_start_on_map') || '지도에서 출발지를 선택해주세요')
+                            : (t('select_end_on_map') || '지도에서 도착지를 선택해주세요')}
+                        </span>
+                        <button
+                          onClick={() => setSelectingRoutePoint(null)}
+                          className="ml-2 p-1 hover:bg-white/20 rounded-full transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+
                     <GoogleMapsWrapper>
                       <RouteMap
                         routes={routes}
@@ -381,12 +506,96 @@ export default function SchematicMap() {
                 </div>
               </div >
             </div >
+
+            {/* Left Column: Tabs (Bottom on Mobile) */}
+            <div className="w-full lg:col-span-1 min-h-0 lg:order-1 flex-1 lg:h-full overflow-hidden">
+              <MainPanel
+                userLocation={userLocation as any}
+                stops={allUniqueStops}
+                routes={routes}
+                routeStops={routeStops}
+                graphEngine={graphEngine}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                onRouteSelect={(routeId: string) => {
+                  setSelectedRoute(routeId);
+                }}
+                onStopSelect={(stop: Stop) => {
+                  setSelectedStop(stop);
+                }}
+                onPathFound={(path: PathResult | null) => setCurrentPath(path)}
+                onSelectOnMap={(type: 'start' | 'end') => setSelectingRoutePoint(type)}
+                selectingType={selectingRoutePoint}
+                startPoint={startRoutePoint}
+                setStartPoint={setStartRoutePoint}
+                endPoint={endRoutePoint}
+                setEndPoint={setEndRoutePoint}
+                selectedRoute={selectedRoute}
+                isFavorite={isFavorite}
+                toggleFavorite={toggleFavorite}
+                alarmTargetStop={alarmTargetStop}
+                isAlarmActive={isAlarmActive}
+              />
+            </div>
           </div >
         )
         }
       </div >
 
-      <Footer />
+      {!isApp && <Footer />}
+
+      {
+        isApp && (
+          <>
+            {/* Mobile Language Selection Modal */}
+            {isLanguageModalOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsLanguageModalOpen(false)} />
+                <div className="bg-white rounded-2xl w-full max-w-sm max-h-[80vh] overflow-hidden shadow-2xl relative z-[101] flex flex-col">
+                  <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-800">{t('language') || 'Select Language'}</h3>
+                    <button onClick={() => setIsLanguageModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                      <X size={20} className="text-slate-500" />
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto p-2">
+                    {languages.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => {
+                          setLanguage(lang.code as any);
+                          setIsLanguageModalOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-4 transition-colors ${language === lang.code
+                          ? 'bg-blue-50 border border-blue-100'
+                          : 'hover:bg-slate-50 border border-transparent'
+                          }`}
+                      >
+                        <img
+                          src={`https://flagcdn.com/w40/${lang.flagCode}.png`}
+                          alt={lang.label}
+                          className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm"
+                        />
+                        <div className="flex-1">
+                          <span className={`block font-bold ${language === lang.code ? 'text-blue-700' : 'text-slate-700'}`}>{lang.label}</span>
+                        </div>
+                        {language === lang.code && (
+                          <div className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.5)]"></div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <PrivacyPolicyModal
+              isOpen={isPrivacyOpen}
+              onClose={() => setIsPrivacyOpen(false)}
+            />
+          </>
+        )
+      }
 
 
 
@@ -420,12 +629,23 @@ export default function SchematicMap() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => {
-                  const lat = selectedStop.location
-                    ? (selectedStop.location as any).coordinates?.[1]
-                    : 17.9757;
-                  const lng = selectedStop.location
-                    ? (selectedStop.location as any).coordinates?.[0]
-                    : 102.6331;
+                  let lat = 17.9757;
+                  let lng = 102.6331;
+
+                  if (selectedStop.location) {
+                    const loc = selectedStop.location as any;
+                    // Handle GeoJSON format { type: 'Point', coordinates: [lng, lat] }
+                    if (loc.coordinates && Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
+                      lng = loc.coordinates[0];
+                      lat = loc.coordinates[1];
+                    }
+                    // Handle simple object format { lat, lng } or { latitude, longitude }
+                    else if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+                      lat = loc.lat;
+                      lng = loc.lng;
+                    }
+                  }
+
                   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
                   window.open(mapsUrl, '_blank');
                 }}
@@ -477,7 +697,7 @@ export default function SchematicMap() {
           setIsNearMeOpen(false);
         }}
         loadingLocation={locationLoading}
-        onRefreshLocation={() => window.location.reload()}
+        onRefreshLocation={() => retryLocation && retryLocation()}
       />
 
       <FeedbackModal
