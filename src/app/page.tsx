@@ -188,8 +188,50 @@ export default function SchematicMap() {
         const activeRouteIds = new Set(activeRoutes.map(r => r.id));
         const filteredStopsData = Object.keys(stopsData)
           .filter(routeId => activeRouteIds.has(routeId))
+          .filter(routeId => activeRouteIds.has(routeId))
           .reduce((obj, key) => {
-            obj[key] = stopsData[key];
+            // Helper to parse PostGIS EWKB Hex to {lat, lng}
+            const parseCoordinates = (hex: string): { lat: number; lng: number } | null => {
+              try {
+                if (!hex || hex.length < 42) return null;
+                // EWKB Hex Format for SRID 4326 (Point):
+                // 01 (Endian) + 01000020 (Type) + E6100000 (SRID) = 18 chars header
+                // X (8 bytes -> 16 chars) starts at index 18
+                // Y (8 bytes -> 16 chars) starts at index 34
+
+                const xHex = hex.substring(18, 34);
+                const yHex = hex.substring(34, 50);
+
+                const parseDouble = (hexStr: string) => {
+                  const buffer = new ArrayBuffer(8);
+                  const view = new DataView(buffer);
+                  for (let i = 0; i < 8; i++) {
+                    view.setUint8(i, parseInt(hexStr.substring(i * 2, i * 2 + 2), 16));
+                  }
+                  return view.getFloat64(0, true); // Little endian
+                };
+
+                return {
+                  lng: parseDouble(xHex),
+                  lat: parseDouble(yHex)
+                };
+              } catch (e) {
+                return null;
+              }
+            };
+
+            const parsedStopsForRoute = stopsData[key].map((stopItem: RouteStopWithDetail) => {
+              // Check if location needs parsing
+              if (stopItem.stops && typeof stopItem.stops.location === 'string' && (stopItem.stops.location as string).startsWith('01010000')) {
+                const parsed = parseCoordinates(stopItem.stops.location as string);
+                if (parsed) {
+                  (stopItem.stops.location as any) = parsed;
+                }
+              }
+              return stopItem;
+            });
+
+            obj[key] = parsedStopsForRoute;
             return obj;
           }, {} as { [key: string]: RouteStopWithDetail[] });
 
@@ -312,12 +354,12 @@ export default function SchematicMap() {
           <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6 h-full">
             {/* Right Column: Route Map (Top on Mobile) */}
             <div className="w-full lg:col-span-2 min-h-0 lg:order-2 h-[40vh] lg:h-full shrink-0">
-              <div className="bg-white rounded-xl shadow-lg p-3 sm:p-6 h-full flex flex-col">
-                <div className="flex items-center justify-between mb-2 pb-2 sm:mb-6 sm:pb-4 border-b border-slate-200 shrink-0">
+              <div className={`bg-white rounded-xl shadow-lg ${isApp ? 'p-2' : 'p-3 sm:p-6'} h-full flex flex-col`}>
+                <div className={`flex items-center justify-between ${isApp ? 'mb-1 pb-1' : 'mb-2 pb-2 sm:mb-6 sm:pb-4'} border-b border-slate-200 shrink-0`}>
                   <div className="flex-1 flex items-center overflow-hidden">
                     {selectedRoute === 'all' ? (
-                      <h3 className="text-base lg:text-xl font-bold text-slate-800 flex items-center gap-2">
-                        <MapPin className="text-blue-600" />
+                      <h3 className={`${isApp ? 'text-sm' : 'text-base lg:text-xl'} font-bold text-slate-800 flex items-center gap-2`}>
+                        <MapPin className={`${isApp ? 'w-5 h-5' : 'w-6 h-6'} text-blue-600`} />
                         {t('all_routes_map')}
                       </h3>
                     ) : (
@@ -327,12 +369,12 @@ export default function SchematicMap() {
                           return r ? (
                             <>
                               <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm flex-shrink-0"
+                                className={`${isApp ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs'} rounded-full flex items-center justify-center text-white font-bold shadow-sm flex-shrink-0`}
                                 style={{ backgroundColor: r.route_color }}
                               >
                                 {r.route_number}
                               </div>
-                              <h3 className="text-base lg:text-xl font-bold text-slate-800 truncate">
+                              <h3 className={`${isApp ? 'text-sm' : 'text-base lg:text-xl'} font-bold text-slate-800 truncate`}>
                                 {r.route_name}
                               </h3>
                             </>
@@ -348,9 +390,9 @@ export default function SchematicMap() {
                     <div className="relative z-50">
                       <button
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        className="p-2 -mr-2 text-slate-600 hover:text-slate-900 active:bg-slate-100 rounded-full transition-colors"
+                        className={`text-slate-600 hover:text-slate-900 active:bg-slate-100 rounded-full transition-colors ${isApp ? 'p-1 -mr-1' : 'p-2 -mr-2'}`}
                       >
-                        <MoreVertical size={24} />
+                        <MoreVertical size={isApp ? 20 : 24} />
                       </button>
 
                       {isMenuOpen && (
@@ -416,11 +458,11 @@ export default function SchematicMap() {
                       onClick={() => {
                         window.open(`https://docs.google.com/forms/d/e/1FAIpQLSe-Xaa2r3Xz_13JqXfKk_wYQ3yZqX3X3X3X3X3/viewform?usp=sf_link`, '_blank');
                       }}
-                      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 h-9 px-4 bg-orange-400 rounded-full flex items-center justify-center gap-2 text-white shadow-lg hover:bg-orange-500 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
+                      className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-10 ${isApp ? 'h-7 px-3' : 'h-9 px-4'} bg-orange-400 rounded-full flex items-center justify-center gap-2 text-white shadow-lg hover:bg-orange-500 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2`}
                       title={t('report_issue_btn') || '잘못된 정보 신고'}
                     >
-                      <AlertTriangle size={16} />
-                      <span className="text-xs font-bold whitespace-nowrap">{t('report_issue_btn') || '잘못된 정보 신고'}</span>
+                      <AlertTriangle size={isApp ? 12 : 16} />
+                      <span className={`${isApp ? 'text-[10px]' : 'text-xs'} font-bold whitespace-nowrap`}>{t('report_issue_btn') || '잘못된 정보 신고'}</span>
                     </button>
                     {/* Map Selection Instruction Banner */}
                     {selectingRoutePoint && (
@@ -442,6 +484,7 @@ export default function SchematicMap() {
 
                     <GoogleMapsWrapper>
                       <RouteMap
+                        isApp={isApp}
                         routes={routes}
                         stopsByRoute={routeStops}
                         selectedRoute={activeTab === 'search' ? selectedRoute : 'all'}

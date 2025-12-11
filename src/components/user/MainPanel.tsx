@@ -92,7 +92,7 @@ export default function MainPanel({
             </div>
 
             {/* Tab Content */}
-            <div className="flex-1 relative flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 relative flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
                 <div className={`flex-col h-full ${activeTab === 'search' ? 'flex' : 'hidden'}`}>
                     <SearchTab
                         routes={routes}

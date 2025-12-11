@@ -29,6 +29,7 @@ interface RouteMapProps {
     endStop?: Stop | null;
     selectedRoute?: string;
     selectedStop?: Stop | null;
+    isApp?: boolean;
 }
 
 const DEFAULT_STOPS: Stop[] = [];
@@ -44,7 +45,8 @@ export default function RouteMap({
     startStop,
     endStop,
     selectedRoute,
-    selectedStop
+    selectedStop,
+    isApp = false,
 }: RouteMapProps) {
     const { t } = useLanguage();
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -418,7 +420,7 @@ export default function RouteMap({
 
                 // Fit Bounds to Path
                 if (!bounds.isEmpty()) {
-                    mapInstanceRef.current.fitBounds(bounds, 50); // 50px padding
+                    mapInstanceRef.current.fitBounds(bounds, isApp ? 20 : 50); // Use tighter padding for App
                 }
                 return; // SKIP Case B if Path is highlighted
             }
@@ -573,7 +575,7 @@ export default function RouteMap({
 
             const currentRoutesId = routesToRender.map(r => r.id).sort().join(',');
             if (boundsRef.current !== currentRoutesId && !bounds.isEmpty()) {
-                mapInstanceRef.current.fitBounds(bounds);
+                mapInstanceRef.current.fitBounds(bounds, isApp ? 0 : undefined); // Zero padding for App
                 boundsRef.current = currentRoutesId;
             }
 

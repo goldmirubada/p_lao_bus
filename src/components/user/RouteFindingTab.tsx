@@ -171,7 +171,7 @@ export default function RouteFindingTab({
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
+        <div className="flex flex-col h-auto lg:h-full bg-slate-50">
             {/* Input Area */}
             <div className="p-4 bg-white border-b border-slate-200 space-y-3 shrink-0 relative z-20">
                 {/* Reset Button (Top Right absolute) */}
@@ -187,14 +187,14 @@ export default function RouteFindingTab({
                             type="text"
                             className="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder-slate-400"
                             placeholder={t('start_point_placeholder' as any)}
-                            value={startPoint === 'current' ? (t('current_location' as any)) : (activeSearchField === 'start' ? startQuery : getStopName(startPoint))}
+                            value={activeSearchField === 'start' ? startQuery : (startPoint === 'current' ? (t('current_location' as any)) : getStopName(startPoint))}
                             onFocus={() => {
                                 if (startPoint === 'current') setStartQuery('');
                                 else if (startPoint && typeof startPoint !== 'string') setStartQuery(startPoint.stop_name);
                                 setActiveSearchField('start');
                             }}
                             onChange={(e) => {
-                                setStartPoint('current'); // Reset to modify
+                                setStartPoint(null); // Clear selected point to allow searching
                                 setStartQuery(e.target.value);
                             }}
                         />
@@ -363,7 +363,7 @@ export default function RouteFindingTab({
             </div>
 
             {/* Results Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
+            <div className="flex-1 overflow-visible lg:overflow-y-auto p-4 space-y-4 flex flex-col">
                 {pathResult ? (
                     <div className="animate-fadeIn space-y-4 pb-20">
                         {/* Summary Card */}
