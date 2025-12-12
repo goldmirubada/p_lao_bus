@@ -147,9 +147,11 @@ export default function SchematicMap() {
 
       let apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
-      // Android 에뮬레이터에서 localhost 접속 문제 해결
+      // Android 에뮬레이터/운영 환경 분기 처리
       if (!apiBase && Capacitor.getPlatform() === 'android') {
-        apiBase = 'http://10.0.2.2:3000';
+        apiBase = process.env.NODE_ENV === 'development'
+          ? 'http://10.0.2.2:3000'
+          : 'https://laobus.asia';
       }
 
       // Remove trailing slash if present to avoid double slashes
