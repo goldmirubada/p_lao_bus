@@ -13,6 +13,7 @@ interface NearMePanelProps {
     stops: Stop[];
     onStopClick: (stop: Stop) => void;
     loadingLocation: boolean;
+    locationError?: string | null;
     onRefreshLocation: () => void;
 }
 
@@ -23,6 +24,7 @@ export default function NearMePanel({
     stops,
     onStopClick,
     loadingLocation,
+    locationError,
     onRefreshLocation
 }: NearMePanelProps) {
     const { t } = useLanguage();
@@ -89,7 +91,7 @@ export default function NearMePanel({
                     </div>
                 ) : !userLocation ? (
                     <div className="text-center py-8 text-slate-500">
-                        <p className="mb-4">{t('location_permission_denied')}</p>
+                        <p className="mb-4 text-red-500">{locationError || t('location_permission_denied')}</p>
                         <button
                             onClick={onRefreshLocation}
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"

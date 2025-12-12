@@ -12,12 +12,26 @@ interface GeolocationState {
     loading: boolean;
 }
 
-export function useGeolocation() {
+export function useGeolocation(options: { autoFetch?: boolean } = { autoFetch: true }) {
+    const { autoFetch = true } = options;
     const [state, setState] = useState<GeolocationState>({
         location: null,
         error: null,
-        loading: true,
+        loading: autoFetch, // Only show loading initially if autoFetch is true
     });
+
+    const setManualLocation = (lat: number, lng: number) => {
+        setState(prev => ({
+            ...prev,
+            location: { latitude: lat, longitude: lng, accuracy: 0 },
+            loading: false,
+            error: null
+        }));
+    };
+
+    const setLoading = (isLoading: boolean) => {
+        setState(prev => ({ ...prev, loading: isLoading }));
+    };
 
     const getLocation = async () => {
         setState(prev => ({ ...prev, loading: true, error: null }));
@@ -30,22 +44,31 @@ export function useGeolocation() {
             try {
                 const permissionStatus = await Geolocation.checkPermissions();
                 if (permissionStatus.location !== 'granted') {
-                    const requestStatus = await Geolocation.requestPermissions();
-                    if (requestStatus.location !== 'granted') {
-                        throw new Error('Location permission denied');
-                    }
+                    // Try to request permissions
+                    await Geolocation.requestPermissions();
                 }
             } catch (permError) {
-                // On web, checkPermissions might fail or behave differently, 
-                // proceed to try getCurrentPosition which handles permissions flow on web too
                 console.warn("Permission check failed, processing anyway:", permError);
             }
 
-            const position = await Geolocation.getCurrentPosition({
-                enableHighAccuracy: true,
-                timeout: 15000,
-                maximumAge: 10000
-            });
+            let position;
+            try {
+                // [Scenario 1: Balanced]
+                // First try with high accuracy (GPS) - Fast timeout
+                position = await Geolocation.getCurrentPosition({
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 30000
+                });
+            } catch (e) {
+                console.warn("High accuracy location failed, trying low accuracy:", e);
+                // Fallback to low accuracy (Network)
+                position = await Geolocation.getCurrentPosition({
+                    enableHighAccuracy: false,
+                    timeout: 10000,
+                    maximumAge: 30000
+                });
+            }
 
             setState({
                 location: {
@@ -67,8 +90,10 @@ export function useGeolocation() {
     };
 
     useEffect(() => {
-        getLocation();
-    }, []);
+        if (autoFetch) {
+            getLocation();
+        }
+    }, [autoFetch]);
 
-    return { ...state, retry: getLocation };
+    return { ...state, retry: getLocation, setManualLocation, setLoading };
 }

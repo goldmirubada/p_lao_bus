@@ -57,7 +57,7 @@ export default function SchematicMap() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const { t, language, setLanguage } = useLanguage();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { location: userLocation, loading: locationLoading, error: locationError, retry: retryLocation } = useGeolocation();
+  const { location: userLocation, loading: locationLoading, error: locationError, retry: retryLocation, setManualLocation, setLoading: setLocationLoading } = useGeolocation({ autoFetch: false });
 
   // App Specific State
   const [isApp, setIsApp] = useState(false);
@@ -520,6 +520,12 @@ export default function SchematicMap() {
                         startStop={(activeTab === 'route' && startRoutePoint !== 'current') ? startRoutePoint : null}
                         endStop={activeTab === 'route' ? endRoutePoint : null}
                         onMyLocationClick={() => setIsNearMeOpen(true)}
+                        onLocationLoading={setLocationLoading}
+                        onLocationFound={(pos) => {
+                          if (setManualLocation) {
+                            setManualLocation(pos.lat, pos.lng);
+                          }
+                        }}
                         onMapClick={(lat, lng) => {
                           if (selectingRoutePoint) {
                             let nearestStop: Stop | null = null;
@@ -764,6 +770,7 @@ export default function SchematicMap() {
           setIsNearMeOpen(false);
         }}
         loadingLocation={locationLoading}
+        locationError={locationError}
         onRefreshLocation={() => retryLocation && retryLocation()}
       />
 

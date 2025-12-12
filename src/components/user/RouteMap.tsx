@@ -31,6 +31,8 @@ interface RouteMapProps {
     selectedRoute?: string;
     selectedStop?: Stop | null;
     isApp?: boolean;
+    onLocationFound?: (location: { lat: number; lng: number }) => void;
+    onLocationLoading?: (loading: boolean) => void;
 }
 
 const DEFAULT_STOPS: Stop[] = [];
@@ -48,6 +50,8 @@ export default function RouteMap({
     selectedRoute,
     selectedStop,
     isApp = false,
+    onLocationFound,
+    onLocationLoading
 }: RouteMapProps) {
     const { t } = useLanguage();
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -71,7 +75,6 @@ export default function RouteMap({
     }, []);
 
     // Get user location on mount
-    // Get user location on mount
     useEffect(() => {
         const fetchLocation = async () => {
             try {
@@ -84,13 +87,14 @@ export default function RouteMap({
                 const position = await Geolocation.getCurrentPosition({
                     enableHighAccuracy: true,
                     timeout: 10000,
-                    maximumAge: 30000
+                    maximumAge: 30000 // Align with map logic
                 });
                 const pos = {
                     lat: position.coords.latitude,
                     lng: position.coords.longitude,
                 };
                 setUserLocation(pos);
+                if (onLocationFound) onLocationFound(pos); // Broadcast location
             } catch (e) {
                 console.log('Error getting location on mount:', e);
             }
@@ -673,6 +677,10 @@ export default function RouteMap({
     }, [routes, stopsByRoute, selectableStops, mounted, mapReady, highlightedPath, startStop, endStop, selectedRoute]);
 
     const handleMyLocationClick = async () => {
+        // [UX Improvement] Open panel and show loading IMMEDIATELY
+        if (onMyLocationClick) onMyLocationClick();
+        if (onLocationLoading) onLocationLoading(true);
+
         try {
             const { Geolocation } = await import('@capacitor/geolocation');
             const permissionStatus = await Geolocation.checkPermissions();
@@ -680,26 +688,30 @@ export default function RouteMap({
                 const requestStatus = await Geolocation.requestPermissions();
                 if (requestStatus.location !== 'granted') {
                     // Optionally show alert here
+                    if (onLocationLoading) onLocationLoading(false);
                     return;
                 }
             }
 
+            // Using Scenario 1: Balanced (matches useGeolocation.ts)
             const position = await Geolocation.getCurrentPosition({
                 enableHighAccuracy: true,
-                timeout: 15000,
-                maximumAge: 5000
+                timeout: 5000,
+                maximumAge: 30000
             });
             const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
             setUserLocation(pos);
+            if (onLocationFound) onLocationFound(pos);
+
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.setCenter(pos);
                 mapInstanceRef.current.setZoom(17);
             }
         } catch (err) {
             console.warn('Location error:', err);
+        } finally {
+            if (onLocationLoading) onLocationLoading(false);
         }
-        // if (onMyLocationClick) onMyLocationClick(); // Call existing prop if needed
-        if (onMyLocationClick) onMyLocationClick();
     };
 
     if (!mounted) {

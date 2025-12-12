@@ -44,6 +44,7 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
+
 try {
     def servicesJSON = file('google-services.json')
     if (servicesJSON.text) {
@@ -51,4 +52,32 @@ try {
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// [Auto Copy APK]
+// Automatically copies the built APK to public/apk/ folder
+// [Auto Copy APK]
+// Automatically copies the built APK to public/apk/ folder
+android.applicationVariants.all { variant ->
+    // Handle both Debug and Release builds
+    if (variant.buildType.name == "release" || variant.buildType.name == "debug") {
+        variant.assembleProvider.get().doLast {
+            variant.outputs.all { output ->
+                def outputFile = output.outputFile
+                if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                    def destDir = new File(rootDir, "../public/apk")
+                    // Use standard name 'app-release.apk' for BOTH debug and release builds
+                    // This allows using a single download link regardless of build type
+                    def newName = "app-release.apk"
+                    
+                    copy {
+                        from outputFile
+                        into destDir
+                        rename { newName }
+                    }
+                    println "✅ APK Copied to: ${destDir.absolutePath}/${newName}"
+                }
+            }
+        }
+    }
 }
