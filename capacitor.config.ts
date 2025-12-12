@@ -8,6 +8,15 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'http',
     cleartext: true
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      backgroundColor: "#ffffff",
+      androidSplashResourceName: "splash",
+      showSpinner: false
+    }
   }
 };
 

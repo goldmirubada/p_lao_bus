@@ -24,6 +24,7 @@ import { PathResult } from '@/lib/graph/types';
 import MainPanel from '@/components/user/MainPanel';
 import { calculateDistance } from '@/lib/graph/geoUtils';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { SplashScreen } from '@capacitor/splash-screen';
 import PrivacyPolicyModal from '@/components/legal/PrivacyPolicyModal';
 import { MoreVertical, Globe, FileText, Mail, Shield, ChevronRight } from 'lucide-react';
 
@@ -129,6 +130,12 @@ export default function SchematicMap() {
     : routes;
 
   useEffect(() => {
+    // [UI] Hide Native Splash Screen immediately on mount
+    // This allows our custom "React Splash Screen" (splash.png) to be seen while data fetches
+    if (Capacitor.isNativePlatform()) {
+      SplashScreen.hide().catch(err => console.error('Error hiding splash:', err));
+    }
+
     fetchData();
     // Check auth
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -138,6 +145,7 @@ export default function SchematicMap() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -268,21 +276,45 @@ export default function SchematicMap() {
     }
   };
 
-  if (loading) {
-    if (isApp) {
+  // [UI] 3-Phase Loading Logic
+  // 1. Native Splash (Hidden immediately on mount)
+  // 2. Custom Splash Image (Fixed 3s)
+  // 3. Loading UI (If data fetching is slower than 3s)
+  const [showIntroSplash, setShowIntroSplash] = useState(true);
+
+  useEffect(() => {
+    // 1. Hide Native Splash immediately
+    if (Capacitor.isNativePlatform()) {
+      SplashScreen.hide().catch(e => console.error('Hide splash error', e));
+    }
+
+    // 2. Start 3s timer for Custom Splash
+    const timer = setTimeout(() => {
+      setShowIntroSplash(false);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading || showIntroSplash) {
+    // Phase 2 & 3: Unified Splash + Loading Overlay
+    // We show this if showIntroSplash is true (first 3s) OR if loading is true.
+    // We check (isApp || showIntroSplash) to ensure we show the splash immediately on mount
+    // even before isApp state resolves to true, preventing the "Web Spinner" flash.
+    if (isApp || showIntroSplash) {
       return (
-        <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8">
-          <div className="flex-1 flex flex-col items-center justify-center w-full max-w-[280px]">
-            <img
-              src="/app-logo.png"
-              alt="Lao Bus"
-              className="w-32 h-32 mb-8 object-contain animate-fadeIn"
-            />
-            <h1 className="text-2xl font-bold text-slate-800 mb-2 text-center animate-slideUp">Laos Bus Route Map</h1>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-8 max-w-[200px]">
-              <div className="h-full bg-blue-600 animate-loading-bar rounded-full"></div>
-            </div>
-            <p className="text-slate-400 text-sm mt-4 animate-pulse">{t('map_loading_text') || 'Loading...'}</p>
+        <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center">
+          {/* Background Image */}
+          <div className="absolute inset-0 z-0">
+            <img src="/splash.webp" alt="Lao Bus" className="w-full h-full object-cover" />
+            {/* Optional: Dark overlay to make text readable */}
+            <div className="absolute inset-0 bg-black/10" />
+          </div>
+
+          {/* Loading Indicator Overlay */}
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mb-4 shadow-sm"></div>
+            <p className="text-white font-bold text-lg shadow-sm animate-pulse">{t('map_loading_text') || 'Loading...'}</p>
           </div>
         </div>
       );
@@ -297,6 +329,7 @@ export default function SchematicMap() {
       </div>
     );
   }
+
 
   return (
 
