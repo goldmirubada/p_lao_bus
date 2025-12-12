@@ -150,7 +150,7 @@ export class NetworkGraph {
     /**
      * Find nearest stop to a given coordinate
      */
-    public findNearestStop(lat: number, lng: number, maxDistKm: number = 2.0): GraphNode | null {
+    public findNearestStop(lat: number, lng: number, maxDistKm: number = 5000.0): GraphNode | null {
         let nearest: GraphNode | null = null;
         let minKm = Infinity;
 
@@ -165,9 +165,6 @@ export class NetworkGraph {
         return nearest;
     }
 
-    /**
-     * Implement Dijkstra's Algorithm
-     */
     /**
      * Implement Dijkstra's Algorithm
      */
@@ -187,16 +184,18 @@ export class NetworkGraph {
             return { code: 'TOO_CLOSE' };
         }
 
+        // [Global Mode] Restrictions Removed
         // Vientiane Rough BBox Checks (Expanded for safety)
-        if (startLat < 17.8 || startLat > 18.2 || startLng < 102.3 || startLng > 102.9 ||
-            endLat < 17.8 || endLat > 18.2 || endLng < 102.3 || endLng > 102.9) {
-            return { code: 'OUT_OF_SERVICE_AREA' };
-        }
+        // if (startLat < 17.8 || startLat > 18.2 || startLng < 102.3 || startLng > 102.9 ||
+        //     endLat < 17.8 || endLat > 18.2 || endLng < 102.3 || endLng > 102.9) {
+        //     return { code: 'OUT_OF_SERVICE_AREA' };
+        // }
 
         // 1. Find nearest start and end nodes (Stops)
         // Real implementation should support "Walking from start to Stop A"
         const startNode = this.findNearestStop(startLat, startLng);
         const endNode = this.findNearestStop(endLat, endLng);
+
 
         // console.log(`[GraphSearch] Request: (${startLat},${startLng}) -> (${endLat},${endLng})`);
 
@@ -330,10 +329,11 @@ export class NetworkGraph {
         const totalWalkDist = walkStartDist + walkEndDist;
         const totalTripDist = totalDist + totalWalkDist;
 
+        // [Global Mode] Check Removed
         // If walking is more than 80% AND absolute walk is > 1.5km
-        if (totalWalkDist > 1.5 && (totalWalkDist / totalTripDist) > 0.8) {
-            return { code: 'WALKING_TOO_LONG' };
-        }
+        // if (totalWalkDist > 1.5 && (totalWalkDist / totalTripDist) > 0.8) {
+        //     return { code: 'WALKING_TOO_LONG' };
+        // }
 
         // Assemble Full Path
         const fullPath: PathSegment[] = [
