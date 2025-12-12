@@ -18,7 +18,7 @@
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
     "@capacitor/ios": "^7.4.4",
-    "@capacitor/splash-screen": "^8.0.0",
+    "@capacitor/splash-screen": "^7.0.4",
     "@supabase/supabase-js": "^2.86.2",
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
