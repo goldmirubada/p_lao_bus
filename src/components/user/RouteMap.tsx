@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Route, Stop } from '@/lib/supabase/types';
+import { logger } from '@/lib/logger';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 import { PathResult } from '@/lib/graph/types';
@@ -97,6 +98,7 @@ export default function RouteMap({
                 if (onLocationFound) onLocationFound(pos); // Broadcast location
             } catch (e) {
                 console.log('Error getting location on mount:', e);
+                logger.log(e, 'GEOLOCATION', 'warning', { metadata: { context: 'RouteMap Mount' } });
             }
         };
         fetchLocation();
@@ -709,6 +711,7 @@ export default function RouteMap({
             }
         } catch (err) {
             console.warn('Location error:', err);
+            logger.log(err, 'GEOLOCATION', 'error', { metadata: { context: 'MyLocation Click' } });
         } finally {
             if (onLocationLoading) onLocationLoading(false);
         }

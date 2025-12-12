@@ -3,7 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/shared/AuthProvider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-
+import { GlobalErrorBoundary } from "@/components/shared/GlobalErrorBoundary";
+import { GlobalErrorListener } from "@/components/shared/GlobalErrorListener";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -42,11 +43,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LanguageProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </LanguageProvider>
+        <GlobalErrorBoundary>
+          <GlobalErrorListener />
+          <LanguageProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </LanguageProvider>
+        </GlobalErrorBoundary>
       </body>
     </html>
   );

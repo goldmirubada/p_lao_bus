@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 
 interface Location {
     latitude: number;
@@ -81,6 +82,7 @@ export function useGeolocation(options: { autoFetch?: boolean } = { autoFetch: t
             });
         } catch (err: any) {
             console.error("Geolocation error:", err);
+            logger.log(err, 'GEOLOCATION', 'error');
             setState(prev => ({
                 ...prev,
                 error: err.message || 'Error getting location',
