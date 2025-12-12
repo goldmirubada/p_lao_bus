@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Route, Stop } from '@/lib/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
+
 import { PathResult } from '@/lib/graph/types';
 
 // Type declaration for Google Maps
@@ -70,21 +71,31 @@ export default function RouteMap({
     }, []);
 
     // Get user location on mount
+    // Get user location on mount
     useEffect(() => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const pos = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                    };
-                    setUserLocation(pos);
-                },
-                () => {
-                    console.log('Error: The Geolocation service failed.');
+        const fetchLocation = async () => {
+            try {
+                const { Geolocation } = await import('@capacitor/geolocation');
+                const permissionStatus = await Geolocation.checkPermissions();
+                if (permissionStatus.location !== 'granted') {
+                    // Try to request, but silently fail if ignored on mount to avoid nagging
+                    await Geolocation.requestPermissions();
                 }
-            );
-        }
+                const position = await Geolocation.getCurrentPosition({
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 30000
+                });
+                const pos = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                };
+                setUserLocation(pos);
+            } catch (e) {
+                console.log('Error getting location on mount:', e);
+            }
+        };
+        fetchLocation();
     }, []);
 
     // Initialize Map
@@ -661,21 +672,33 @@ export default function RouteMap({
 
     }, [routes, stopsByRoute, selectableStops, mounted, mapReady, highlightedPath, startStop, endStop, selectedRoute]);
 
-    const handleMyLocationClick = () => {
-        if (!navigator.geolocation) return;
-        const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 };
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
-                setUserLocation(pos);
-                if (mapInstanceRef.current) {
-                    mapInstanceRef.current.setCenter(pos);
-                    mapInstanceRef.current.setZoom(17);
+    const handleMyLocationClick = async () => {
+        try {
+            const { Geolocation } = await import('@capacitor/geolocation');
+            const permissionStatus = await Geolocation.checkPermissions();
+            if (permissionStatus.location !== 'granted') {
+                const requestStatus = await Geolocation.requestPermissions();
+                if (requestStatus.location !== 'granted') {
+                    // Optionally show alert here
+                    return;
                 }
-            },
-            (err) => console.warn(err),
-            options
-        );
+            }
+
+            const position = await Geolocation.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 5000
+            });
+            const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+            setUserLocation(pos);
+            if (mapInstanceRef.current) {
+                mapInstanceRef.current.setCenter(pos);
+                mapInstanceRef.current.setZoom(17);
+            }
+        } catch (err) {
+            console.warn('Location error:', err);
+        }
+        // if (onMyLocationClick) onMyLocationClick(); // Call existing prop if needed
         if (onMyLocationClick) onMyLocationClick();
     };
 

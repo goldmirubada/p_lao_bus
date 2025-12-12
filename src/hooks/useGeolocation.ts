@@ -19,15 +19,34 @@ export function useGeolocation() {
         loading: true,
     });
 
-    const getLocation = () => {
-        if (!navigator.geolocation) {
-            setState(prev => ({ ...prev, error: 'Geolocation is not supported', loading: false }));
-            return;
-        }
-
+    const getLocation = async () => {
         setState(prev => ({ ...prev, loading: true, error: null }));
 
-        const handleSuccess = (position: GeolocationPosition) => {
+        try {
+            // Dynamic import to avoid SSR issues
+            const { Geolocation } = await import('@capacitor/geolocation');
+
+            // Check and request permissions
+            try {
+                const permissionStatus = await Geolocation.checkPermissions();
+                if (permissionStatus.location !== 'granted') {
+                    const requestStatus = await Geolocation.requestPermissions();
+                    if (requestStatus.location !== 'granted') {
+                        throw new Error('Location permission denied');
+                    }
+                }
+            } catch (permError) {
+                // On web, checkPermissions might fail or behave differently, 
+                // proceed to try getCurrentPosition which handles permissions flow on web too
+                console.warn("Permission check failed, processing anyway:", permError);
+            }
+
+            const position = await Geolocation.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 10000
+            });
+
             setState({
                 location: {
                     latitude: position.coords.latitude,
@@ -37,21 +56,14 @@ export function useGeolocation() {
                 error: null,
                 loading: false,
             });
-        };
-
-        const handleError = (error: GeolocationPositionError) => {
+        } catch (err: any) {
+            console.error("Geolocation error:", err);
             setState(prev => ({
                 ...prev,
-                error: error.message,
+                error: err.message || 'Error getting location',
                 loading: false,
             }));
-        };
-
-        navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 10000
-        });
+        }
     };
 
     useEffect(() => {

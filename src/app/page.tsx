@@ -299,32 +299,21 @@ export default function SchematicMap() {
   if (loading || showIntroSplash) {
     // Phase 2 & 3: Unified Splash + Loading Overlay
     // We show this if showIntroSplash is true (first 3s) OR if loading is true.
-    // We check (isApp || showIntroSplash) to ensure we show the splash immediately on mount
-    // even before isApp state resolves to true, preventing the "Web Spinner" flash.
-    if (isApp || showIntroSplash) {
-      return (
-        <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center">
-          {/* Background Image */}
-          <div className="absolute inset-0 z-0">
-            <img src="/splash.webp" alt="Lao Bus" className="w-full h-full object-cover" />
-            {/* Optional: Dark overlay to make text readable */}
-            <div className="absolute inset-0 bg-black/10" />
-          </div>
-
-          {/* Loading Indicator Overlay */}
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mb-4 shadow-sm"></div>
-            <p className="text-white font-bold text-lg shadow-sm animate-pulse">{t('map_loading_text') || 'Loading...'}</p>
-          </div>
-        </div>
-      );
-    }
-
+    // Modified to ALWAYS show the Splash style loading on both Web and App
+    // to prevent the "Splash -> Generic Spinner -> Content" transition on Web.
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-600 font-medium">{t('map_loading_text') || 'Loading...'}</p>
+      <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center">
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          <img src="/splash.webp" alt="Lao Bus" className="w-full h-full object-cover" />
+          {/* Optional: Dark overlay to make text readable */}
+          <div className="absolute inset-0 bg-black/10" />
+        </div>
+
+        {/* Loading Indicator Overlay */}
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mb-4 shadow-sm"></div>
+          <p className="text-white font-bold text-lg shadow-sm animate-pulse">{t('map_loading_text') || 'Loading...'}</p>
         </div>
       </div>
     );

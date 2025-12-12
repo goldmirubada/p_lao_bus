@@ -80,8 +80,15 @@ export async function GET() {
             routeStops: routeStopsGrouped
         };
 
+        console.time('JSON_Stringify');
+        const jsonString = JSON.stringify(rawData);
+        console.timeEnd('JSON_Stringify');
+        console.log(`Raw Data Size: ${(jsonString.length / 1024 / 1024).toFixed(2)} MB`);
+
         // Encrypt
+        console.time('Encryption');
         const encryptedPayload = encryptData(rawData);
+        console.timeEnd('Encryption');
 
         return NextResponse.json({ payload: encryptedPayload });
 
