@@ -14,6 +14,7 @@ interface UseStopAlarmProps {
 export function useStopAlarm({ userLocation, onAlarmTriggered }: UseStopAlarmProps) {
     const [targetStop, setTargetStop] = useState<Stop | null>(null);
     const [isAlarmActive, setIsAlarmActive] = useState(false);
+    const [currentDistance, setCurrentDistance] = useState<number | null>(null);
     const watchIdRef = useRef<string | null>(null);
 
     // Initialize audio (Web fallback)
@@ -41,52 +42,49 @@ export function useStopAlarm({ userLocation, onAlarmTriggered }: UseStopAlarmPro
     // Native Alarm Logic
     const triggerNativeAlarm = async (stopName: string) => {
         try {
-            // 1. Notification (High Priority)
+            console.log('[StopAlarm] triggerNativeAlarm called for:', stopName);
+
+            // 1. Notification
             await LocalNotifications.schedule({
                 notifications: [
                     {
                         title: '하차 알림',
                         body: `${stopName} 정류장이 2km 남았습니다!`,
                         id: 1,
-                        schedule: { at: new Date(Date.now() + 100) }, // Immedate
-                        sound: undefined, // Use system default
+                        schedule: { at: new Date(Date.now() + 100) },
+                        sound: undefined,
+                        attachments: [],
                         actionTypeId: '',
                         extra: null
                     }
                 ]
             });
+            console.log('[StopAlarm] Notification scheduled');
 
-            // 2. Haptics (Vibration)
-            await Haptics.vibrate({ duration: 2000 }); // Long vibration
+            // 2. Haptics
+            await Haptics.vibrate({ duration: 2000 });
         } catch (e) {
-            console.error('Native alarm failed', e);
+            console.error('[StopAlarm] Native alarm failed:', e);
         }
     };
 
+    // Web Logic via useEffect removed as we now use active watcher
+    // But we might want to keep basic state sync if needed, but watcher is better.
+    // Empty useEffect for now or remove if strictly relying on watcher.
+    // Let's remove the logic block to avoid conflict/double trigger.
     useEffect(() => {
-        // Web Logic (Keep existing behavior)
-        if (!Capacitor.isNativePlatform()) {
-            if (!userLocation || !targetStop || !isAlarmActive) return;
-
-            const loc = targetStop.location as any;
-            if (!loc || !loc.coordinates || loc.coordinates.length < 2) return;
-
-            const dist = calculateDistance(
-                userLocation.latitude, userLocation.longitude,
-                loc.coordinates[1], loc.coordinates[0]
-            );
-
-            if (dist <= 2000) {
-                triggerAlarm(targetStop.stop_name);
-            }
-        }
-    }, [userLocation, targetStop, isAlarmActive]);
+        // No-op for passive updates
+    }, []);
 
     const triggerAlarm = (stopName = 'Target Stop') => {
         setIsAlarmActive(false);
         setTargetStop(null); // Clear target
-        if (watchIdRef.current && Capacitor.isNativePlatform()) {
-            Geolocation.clearWatch({ id: watchIdRef.current });
+        if (watchIdRef.current) {
+            if (Capacitor.isNativePlatform()) {
+                Geolocation.clearWatch({ id: watchIdRef.current });
+            } else {
+                navigator.geolocation.clearWatch(parseInt(watchIdRef.current));
+            }
             watchIdRef.current = null;
         }
 
@@ -104,51 +102,130 @@ export function useStopAlarm({ userLocation, onAlarmTriggered }: UseStopAlarmPro
         if (onAlarmTriggered) onAlarmTriggered();
     };
 
+    // Helper to extract coordinates safely
+    const getCoordinates = (stop: Stop): { lat: number, lng: number } | null => {
+        const anyStop = stop as any;
+        // 1. GeoJSON (location.coordinates)
+        if (anyStop.location && anyStop.location.coordinates && Array.isArray(anyStop.location.coordinates)) {
+            return { lat: anyStop.location.coordinates[1], lng: anyStop.location.coordinates[0] };
+        }
+        // 2. Simple Object (location.lat/lng)
+        if (anyStop.location && typeof anyStop.location.lat === 'number') {
+            return { lat: anyStop.location.lat, lng: anyStop.location.lng };
+        }
+        // 3. Top-level (stop.lat/lng)
+        if (typeof anyStop.lat === 'number') {
+            return { lat: anyStop.lat, lng: anyStop.lng };
+        }
+        return null; // Invalid location
+    };
+
     const setAlarm = async (stop: Stop) => {
+        console.log('[StopAlarm] Setting alarm for:', stop.stop_name);
+
+        const coords = getCoordinates(stop);
+        if (!coords) {
+            console.error('[StopAlarm] Invalid stop location:', stop);
+            alert('정류장 위치 정보가 올바르지 않아 알람을 설정할 수 없습니다.');
+            return;
+        }
+
+        const { lat: targetLat, lng: targetLng } = coords;
+
         if (Capacitor.isNativePlatform()) {
             // Native: Request permissions and start watcher
-            const perm = await LocalNotifications.requestPermissions();
-            if (perm.display !== 'granted') return; // Should handle UI feedback
+            try {
+                const notifPerm = await LocalNotifications.requestPermissions();
+                if (notifPerm.display !== 'granted') {
+                    console.warn('[StopAlarm] Notification permission denied');
+                }
 
-            setTargetStop(stop);
-            setIsAlarmActive(true);
+                const locPerm = await Geolocation.requestPermissions();
+                if (locPerm.location !== 'granted' && locPerm.coarseLocation !== 'granted') {
+                    console.warn('[StopAlarm] Location permission denied');
+                    return;
+                }
 
-            // Start Native Watcher
-            if (watchIdRef.current) Geolocation.clearWatch({ id: watchIdRef.current });
+                setTargetStop(stop);
+                setIsAlarmActive(true);
 
-            const loc = stop.location as any;
-            const targetLat = loc.coordinates[1];
-            const targetLng = loc.coordinates[0];
+                // Start Native Watcher
+                if (watchIdRef.current) Geolocation.clearWatch({ id: watchIdRef.current });
 
-            watchIdRef.current = await Geolocation.watchPosition(
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-                (position, err) => {
-                    if (position) {
-                        const dist = calculateDistance(
-                            position.coords.latitude, position.coords.longitude,
-                            targetLat, targetLng
-                        );
-                        if (dist <= 2000) { // 2km check
-                            triggerAlarm(stop.stop_name);
+                console.log('[StopAlarm] Starting native watchPosition...');
+                watchIdRef.current = await Geolocation.watchPosition(
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+                    (position, err) => {
+                        if (err) {
+                            console.error('[StopAlarm] Watch Error:', err);
+                            return;
+                        }
+                        if (position) {
+                            const dist = calculateDistance(
+                                position.coords.latitude, position.coords.longitude,
+                                targetLat, targetLng
+                            );
+                            setCurrentDistance(Math.round(dist)); // Update UI
+                            console.log(`[StopAlarm] Distance: ${Math.round(dist)}m`);
+
+                            if (dist <= 15000000) { // 15000km check (Testing)
+                                console.log('[StopAlarm] Triggering Alarm!');
+                                triggerAlarm(stop.stop_name);
+                            }
                         }
                     }
-                }
-            );
+                );
+            } catch (e) {
+                console.error('[StopAlarm] Setup failed:', e);
+            }
         } else {
-            // Web: Just set state, effect handles the rest
+            // Web: Active Watcher
+            console.log('[StopAlarm] Web mode activated');
             if ('Notification' in window && Notification.permission !== 'granted') {
                 Notification.requestPermission();
             }
             setTargetStop(stop);
             setIsAlarmActive(true);
+
+            // Start Web Watcher
+            if (navigator.geolocation) {
+                console.log('[StopAlarm] Starting Web watchPosition...');
+                // Use numeric ID for Web (casted to any->string to match ref type or just handle separately)
+                const id = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const dist = calculateDistance(
+                            position.coords.latitude, position.coords.longitude,
+                            targetLat, targetLng
+                        );
+                        setCurrentDistance(Math.round(dist));
+                        console.log(`[StopAlarm-Web] Distance: ${Math.round(dist)}m`);
+
+                        if (dist <= 15000000) { // 15000km (Testing)
+                            triggerAlarm(stop.stop_name);
+                        }
+                    },
+                    (err) => {
+                        console.error('[StopAlarm-Web] Watch Error:', err.code, err.message);
+                        if (err.code === 1) { // PERMISSION_DENIED
+                            alert('위치 권한이 차단되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.');
+                        }
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+                );
+                watchIdRef.current = id.toString();
+            }
         }
     };
 
     const cancelAlarm = () => {
         setTargetStop(null);
         setIsAlarmActive(false);
-        if (watchIdRef.current && Capacitor.isNativePlatform()) {
-            Geolocation.clearWatch({ id: watchIdRef.current });
+        if (watchIdRef.current) {
+            if (Capacitor.isNativePlatform()) {
+                Geolocation.clearWatch({ id: watchIdRef.current });
+            } else {
+                navigator.geolocation.clearWatch(parseInt(watchIdRef.current));
+            }
             watchIdRef.current = null;
         }
     };
@@ -156,11 +233,15 @@ export function useStopAlarm({ userLocation, onAlarmTriggered }: UseStopAlarmPro
     // Cleanup
     useEffect(() => {
         return () => {
-            if (watchIdRef.current && Capacitor.isNativePlatform()) {
-                Geolocation.clearWatch({ id: watchIdRef.current });
+            if (watchIdRef.current) {
+                if (Capacitor.isNativePlatform()) {
+                    Geolocation.clearWatch({ id: watchIdRef.current });
+                } else {
+                    navigator.geolocation.clearWatch(parseInt(watchIdRef.current));
+                }
             }
         };
     }, []);
 
-    return { targetStop, isAlarmActive, setAlarm, cancelAlarm };
+    return { targetStop, isAlarmActive, setAlarm, cancelAlarm, currentDistance };
 }

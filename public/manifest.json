@@ -3,7 +3,7 @@
   "short_name": "LaoBus",
   "description": "Information about bus routes in Vientiane, Laos",
   "start_url": "/",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
   "icons": [

@@ -25,6 +25,7 @@ import MainPanel from '@/components/user/MainPanel';
 import { calculateDistance } from '@/lib/graph/geoUtils';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import PrivacyPolicyModal from '@/components/legal/PrivacyPolicyModal';
 import { MoreVertical, Globe, FileText, Mail, Shield, ChevronRight } from 'lucide-react';
 
@@ -60,13 +61,32 @@ export default function SchematicMap() {
   const { location: userLocation, loading: locationLoading, error: locationError, retry: retryLocation, setManualLocation, setLoading: setLocationLoading } = useGeolocation({ autoFetch: false });
 
   // App Specific State
-  const [isApp, setIsApp] = useState(false);
+  // Initialize immediately to prevent header flicker on app launch
+  const [isApp, setIsApp] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return Capacitor.isNativePlatform();
+    }
+    return false; // Default to Web for SSR
+  });
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
 
+  // No longer need useEffect for isApp, but can keep listener if platform changes (unlikely)
+  // or just trust the initial value. 
+  // For safety, we can sync it once on mount just in case.
   useEffect(() => {
     setIsApp(Capacitor.isNativePlatform());
+
+    if (Capacitor.isNativePlatform()) {
+      // 1. Force Status Bar to Light Style (Dark Icons)
+      StatusBar.setStyle({ style: Style.Light }).catch(e => console.log('StatusBar style error', e));
+
+      // 2. Force WebView to Overlay Status Bar (Edge-to-Edge for All Versions)
+      // This unifies behavior: 13/14 will now act like 15 (content starts at top).
+      StatusBar.setOverlaysWebView({ overlay: true }).catch(e => console.log('StatusBar overlay error', e));
+    }
   }, []);
 
   const languages = [
@@ -100,9 +120,10 @@ export default function SchematicMap() {
     targetStop: alarmTargetStop,
     isAlarmActive,
     setAlarm,
-    cancelAlarm
+    cancelAlarm,
+    currentDistance // Get distance
   } = useStopAlarm({
-    userLocation,
+    userLocation: userLocation ? { latitude: userLocation.latitude, longitude: userLocation.longitude } : null,
     onAlarmTriggered: () => {
       alert(t('alarm_triggered') + '\n' + t('alarm_desc'));
     }
@@ -322,32 +343,40 @@ export default function SchematicMap() {
 
   return (
 
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-blue-50 to-slate-100 flex flex-col">
+    <div
+      className="h-screen overflow-hidden bg-gradient-to-br from-blue-50 to-slate-100 flex flex-col"
+      style={{
+        paddingTop: isApp ? 'max(env(safe-area-inset-top), 17px)' : 0,
+        paddingBottom: 'env(safe-area-inset-bottom)'
+      }}
+    >
       {/* Header */}
       {/* Header (Web Only) */}
       {/* Header (Web & App) - Always Show for Branding */}
-      <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-50 shrink-0" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
-        <div className="container mx-auto px-4 py-2 sm:py-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="bg-blue-600 p-1 rounded-md" style={{ backgroundColor: '#2563eb' }}>
-                <svg className="w-4 h-4 sm:w-6 sm:h-6" style={{ color: '#ffffff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                </svg>
+      {!isApp && (
+        <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-50 shrink-0" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+          <div className="container mx-auto px-4 py-2 sm:py-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="bg-blue-600 p-1 rounded-md" style={{ backgroundColor: '#2563eb' }}>
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6" style={{ color: '#ffffff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                </div>
+
+                <div>
+                  <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-none" style={{ color: '#1e293b' }}>{t('title')}</h1>
+                  <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5" style={{ color: '#64748b', fontWeight: 400 }}>Laos Bus Route Map</p>
+                </div>
               </div>
 
-              <div>
-                <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-none" style={{ color: '#1e293b' }}>{t('title')}</h1>
-                <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5" style={{ color: '#64748b', fontWeight: 400 }}>Laos Bus Route Map</p>
+              <div className="flex items-center gap-2">
+                <LanguageSwitcher />
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <LanguageSwitcher />
             </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Alarm Status Banner */}
       {isAlarmActive && alarmTargetStop && (
@@ -503,6 +532,25 @@ export default function SchematicMap() {
                           className="ml-2 p-1 hover:bg-white/20 rounded-full transition-colors"
                         >
                           <X size={14} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Alarm Active Banner (Visual Debug) */}
+                    {isAlarmActive && alarmTargetStop && (
+                      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-blue-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-pulse border-2 border-white/30">
+                        <div className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] opacity-90">하차 알림 활성화</span>
+                          <span className="font-bold whitespace-nowrap text-lg">
+                            {currentDistance ? (currentDistance >= 1000 ? `${(currentDistance / 1000).toFixed(1)}km` : `${currentDistance}m`) : '거리 계산 중...'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={cancelAlarm}
+                          className="ml-2 bg-white/20 p-1 rounded-full hover:bg-white/30"
+                        >
+                          <X size={16} />
                         </button>
                       </div>
                     )}
@@ -676,7 +724,21 @@ export default function SchematicMap() {
       <BottomSheet
         isOpen={!!selectedStop}
         onClose={() => setSelectedStop(null)}
-        title={selectedStop?.stop_name}
+        title={
+          selectedRoute !== 'all' ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
+                style={{ backgroundColor: routes.find(r => r.id === selectedRoute)?.route_color || '#94a3b8' }}
+              >
+                {routes.find(r => r.id === selectedRoute)?.route_number}
+              </div>
+              <span>{selectedStop?.stop_name}</span>
+            </div>
+          ) : (
+            selectedStop?.stop_name
+          )
+        }
       >
         {selectedStop && (
           <div className="space-y-6">
@@ -723,7 +785,7 @@ export default function SchematicMap() {
                   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
                   window.open(mapsUrl, '_blank');
                 }}
-                className="flex-1 bg-green-600 text-white py-3.5 rounded-xl hover:bg-green-700 transition-colors font-bold flex items-center justify-center gap-2 shadow-md shadow-green-100"
+                className="flex-1 bg-green-600 text-white py-1.5 text-sm rounded-xl hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 shadow-md shadow-green-100"
               >
                 <NavigationIcon size={20} />
                 {t('directions')}
@@ -739,7 +801,7 @@ export default function SchematicMap() {
                     alert(t('alarm_set'));
                   }
                 }}
-                className={`flex-1 py-3.5 rounded-xl transition-colors font-bold flex items-center justify-center gap-2 shadow-sm ${isAlarmActive && alarmTargetStop?.id === selectedStop.id
+                className={`flex-1 py-1.5 text-sm rounded-xl transition-colors font-medium flex items-center justify-center gap-2 shadow-sm ${isAlarmActive && alarmTargetStop?.id === selectedStop.id
                   ? 'bg-red-100 text-red-600 hover:bg-red-200 border border-red-200'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
                   }`}
@@ -755,6 +817,18 @@ export default function SchematicMap() {
                     {t('set_alarm')}
                   </>
                 )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setEndRoutePoint(selectedStop);
+                  setActiveTab('route');
+                  setSelectedStop(null);
+                }}
+                className="flex-1 bg-blue-600 text-white py-1.5 text-sm rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 shadow-md shadow-blue-100"
+              >
+                <NavigationIcon size={20} />
+                {t('find_route')}
               </button>
             </div>
           </div>

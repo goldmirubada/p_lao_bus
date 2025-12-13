@@ -150,7 +150,7 @@ export class NetworkGraph {
     /**
      * Find nearest stop to a given coordinate
      */
-    public findNearestStop(lat: number, lng: number, maxDistKm: number = 5000.0): GraphNode | null {
+    public findNearestStop(lat: number, lng: number, maxDistKm: number = Infinity): GraphNode | null {
         let nearest: GraphNode | null = null;
         let minKm = Infinity;
 
