@@ -90,7 +90,7 @@ export default function SearchTab({
     return (
         <div className="flex flex-col h-auto lg:h-full bg-slate-50">
             {/* Custom Route Selector */}
-            <div className="p-4 bg-white border-b border-slate-200 z-40 relative">
+            <div className="p-4 bg-white border-b border-slate-200 z-40 relative" style={{ borderBottom: '1px solid #e2e8f0' }}>
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold text-slate-800 border-l-4 border-blue-600 pl-2">
                         {t('all_routes_map') || '전체 노선도'}
@@ -98,8 +98,9 @@ export default function SearchTab({
                     <button
                         onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
                         className={`text-xs flex items-center gap-1 transition-colors ${showFavoritesOnly ? 'text-yellow-500 font-bold' : 'text-slate-500 hover:text-blue-600'}`}
+                        style={{ color: showFavoritesOnly ? '#eab308' : '#64748b' }}
                     >
-                        <Star size={12} className={showFavoritesOnly ? "fill-current" : ""} />
+                        <Star size={12} className={showFavoritesOnly ? "fill-current" : ""} style={{ fill: showFavoritesOnly ? 'currentColor' : 'none' }} />
                         {t('favorites') || '즐겨찾기'}
                     </button>
                 </div>
@@ -123,6 +124,7 @@ export default function SearchTab({
                             setIsDropdownOpen(!isDropdownOpen);
                         }}
                         className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all text-left"
+                        style={{ border: '1px solid #e2e8f0' }}
                     >
                         <div className="flex items-center gap-3">
                             {selectedRoute === 'all' ? (
@@ -148,7 +150,7 @@ export default function SearchTab({
                     {isDropdownOpen && (
                         <div
                             className={`bg-white rounded-xl shadow-xl border border-slate-100 overflow-y-auto animate-fadeIn z-[100] ${!isApp ? 'absolute top-full left-0 right-0 mt-2 max-h-[400px]' : ''}`}
-                            style={isApp ? dropdownStyle : {}}
+                            style={{ ...(isApp ? dropdownStyle : {}), border: '1px solid #e2e8f0' }}
                         >
                             {/* Option: All Routes */}
                             <button
@@ -157,8 +159,12 @@ export default function SearchTab({
                                     setIsDropdownOpen(false);
                                 }}
                                 className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 border-b border-slate-50"
+                                style={{ borderBottom: '1px solid #f1f5f9' }}
                             >
-                                <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-bold">
+                                <div
+                                    className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-bold"
+                                    style={{ backgroundColor: '#1e293b', color: '#ffffff' }}
+                                >
                                     ALL
                                 </div>
                                 <span className="font-bold text-slate-700 flex-1">
@@ -209,6 +215,7 @@ export default function SearchTab({
                                                 <Star
                                                     size={16}
                                                     className={isFav ? "text-yellow-400 fill-yellow-400" : "text-slate-300 hover:text-slate-400"}
+                                                    style={{ color: isFav ? '#facc15' : '#cbd5e1', fill: isFav ? '#facc15' : 'none' }}
                                                 />
                                             </button>
                                         </div>
@@ -220,7 +227,7 @@ export default function SearchTab({
             </div>
 
             {/* Stops Search */}
-            <div className="px-4 pb-4 pt-2 bg-white border-b border-slate-200 z-10">
+            <div className="px-4 pb-4 pt-2 bg-white border-b border-slate-200 z-10" style={{ borderBottom: '1px solid #e2e8f0' }}>
                 <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <SearchIcon className="h-5 w-5 text-slate-400" />
@@ -231,6 +238,7 @@ export default function SearchTab({
                         placeholder={t('search_placeholder') || "노선 번호 또는 정류장 검색..."}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
+                        style={{ border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#1e293b' }}
                     />
                     {query && (
                         <button
@@ -251,7 +259,7 @@ export default function SearchTab({
                         {/* Routes Section */}
                         {filteredResults.routes.length > 0 && (
                             <div className="bg-white mb-2">
-                                <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-100">
+                                <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-100" style={{ borderBottom: '1px solid #f1f5f9' }}>
                                     {t('route_info') || '노선'}({filteredResults.routes.length})
                                 </div>
                                 {filteredResults.routes.map(route => (
@@ -259,6 +267,7 @@ export default function SearchTab({
                                         key={route.id}
                                         onClick={() => onRouteSelect(route.id)}
                                         className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3 group border-b border-slate-50 last:border-0"
+                                        style={{ borderBottom: '1px solid #f8fafc' }}
                                     >
                                         <div
                                             className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm flex-shrink-0 transition-transform group-hover:scale-110"

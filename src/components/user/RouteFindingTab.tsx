@@ -323,6 +323,7 @@ export default function RouteFindingTab({
                         disabled={isCalculating || !endPoint}
                         className={`flex-1 py-2 rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2
                     ${(isCalculating || !endPoint) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        style={(isCalculating || !endPoint) ? { backgroundColor: '#cbd5e1', color: '#64748b' } : { backgroundColor: '#2563eb', color: '#ffffff' }}
                     >
                         {isCalculating ? (
                             <>

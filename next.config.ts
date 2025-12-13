@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 // @ts-ignore
 const withPWA = require('next-pwa')({
   dest: 'public',
-  disable: process.env.NODE_ENV === 'development',
+  disable: true, // FORCE DISABLE PWA to prevent Service Worker caching issues in Webview
   register: true,
   skipWaiting: true,
 });
@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  trailingSlash: true,
   async headers() {
     return [
       {

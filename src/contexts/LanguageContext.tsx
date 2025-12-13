@@ -20,23 +20,28 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         if (savedLang && ['ko', 'lo', 'en', 'cn', 'th', 'vi', 'km'].includes(savedLang)) {
             setLanguageState(savedLang);
         } else {
-            // Detect system language
-            const systemLang = navigator.language.toLowerCase();
-            if (systemLang.startsWith('ko')) {
-                setLanguageState('ko');
-            } else if (systemLang.startsWith('lo')) {
-                setLanguageState('lo');
-            } else if (systemLang.startsWith('zh')) {
-                setLanguageState('cn');
-            } else if (systemLang.startsWith('th')) {
-                setLanguageState('th');
-            } else if (systemLang.startsWith('vi')) {
-                setLanguageState('vi');
-            } else if (systemLang.startsWith('km')) {
-                setLanguageState('km');
-            } else {
-                setLanguageState('en'); // Default fallback
-            }
+            // Robust Language Detection for Hybrid App
+            const setLangFromCode = (code: string) => {
+                const lowerCode = code.toLowerCase();
+                if (lowerCode.startsWith('ko')) setLanguageState('ko');
+                else if (lowerCode.startsWith('lo')) setLanguageState('lo');
+                else if (lowerCode.startsWith('zh')) setLanguageState('cn');
+                else if (lowerCode.startsWith('th')) setLanguageState('th');
+                else if (lowerCode.startsWith('vi')) setLanguageState('vi');
+                else if (lowerCode.startsWith('km')) setLanguageState('km');
+                else setLanguageState('en');
+            };
+
+            import('@capacitor/device').then(({ Device }) => {
+                Device.getLanguageCode().then(({ value }) => {
+                    setLangFromCode(value);
+                }).catch(() => {
+                    // Fallback to navigator if Plugin fails
+                    setLangFromCode(navigator.language);
+                });
+            }).catch(() => {
+                setLangFromCode(navigator.language);
+            });
         }
     }, []);
 

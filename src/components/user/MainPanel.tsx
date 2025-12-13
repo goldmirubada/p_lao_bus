@@ -64,16 +64,17 @@ export default function MainPanel({
     const { t } = useLanguage();
 
     return (
-        <div className="bg-white rounded-xl shadow-lg h-full flex flex-col border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-lg h-full flex flex-col border border-slate-200 overflow-hidden" style={{ border: '1px solid #e2e8f0' }}>
             {/* Tab Header - Segmented Control */}
-            <div className="p-3 bg-white border-b border-slate-100">
+            <div className="p-3 bg-white border-b border-slate-100" style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <div className="flex p-1 bg-slate-100/80 rounded-xl relative">
                     <button
                         onClick={() => onTabChange('search')}
                         className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-lg transition-all duration-200 z-10
                     ${activeTab === 'search'
-                                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
+                                ? 'bg-blue-600 text-white shadow-md'
                                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                        style={activeTab === 'search' ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
                     >
                         <Bus size={16} />
                         {t('route_info') || '노선 검색'}
@@ -82,8 +83,9 @@ export default function MainPanel({
                         onClick={() => onTabChange('route')}
                         className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-lg transition-all duration-200 z-10
                     ${activeTab === 'route'
-                                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
+                                ? 'bg-blue-600 text-white shadow-md'
                                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                        style={activeTab === 'route' ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
                     >
                         <Navigation size={16} />
                         {t('find_route') || '길찾기'}

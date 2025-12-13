@@ -325,30 +325,29 @@ export default function SchematicMap() {
     <div className="h-screen overflow-hidden bg-gradient-to-br from-blue-50 to-slate-100 flex flex-col">
       {/* Header */}
       {/* Header (Web Only) */}
-      {!isApp && (
-        <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-50 shrink-0">
-          <div className="container mx-auto px-4 py-2 sm:py-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="bg-blue-600 p-1 rounded-md">
-                  <svg className="w-4 h-4 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                  </svg>
-                </div>
-
-                <div>
-                  <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-none">{t('title')}</h1>
-                  <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5">Laos Bus Route Map</p>
-                </div>
+      {/* Header (Web & App) - Always Show for Branding */}
+      <header className="bg-white shadow-md border-b border-slate-200 sticky top-0 z-50 shrink-0" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+        <div className="container mx-auto px-4 py-2 sm:py-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-600 p-1 rounded-md" style={{ backgroundColor: '#2563eb' }}>
+                <svg className="w-4 h-4 sm:w-6 sm:h-6" style={{ color: '#ffffff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
               </div>
 
-              <div className="flex items-center gap-2">
-                <LanguageSwitcher />
+              <div>
+                <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-none" style={{ color: '#1e293b' }}>{t('title')}</h1>
+                <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5" style={{ color: '#64748b', fontWeight: 400 }}>Laos Bus Route Map</p>
               </div>
             </div>
+
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher />
+            </div>
           </div>
-        </header>
-      )}
+        </div>
+      </header>
 
       {/* Alarm Status Banner */}
       {isAlarmActive && alarmTargetStop && (
@@ -378,12 +377,12 @@ export default function SchematicMap() {
           <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6 h-full">
             {/* Right Column: Route Map (Top on Mobile) */}
             <div className="w-full lg:col-span-2 min-h-0 lg:order-2 h-[40vh] lg:h-full shrink-0">
-              <div className={`bg-white rounded-xl shadow-lg ${isApp ? 'p-2' : 'p-3 sm:p-6'} h-full flex flex-col`}>
-                <div className={`flex items-center justify-between ${isApp ? 'mb-1 pb-1' : 'mb-2 pb-2 sm:mb-6 sm:pb-4'} border-b border-slate-200 shrink-0`}>
+              <div className={`bg-white rounded-xl shadow-lg ${isApp ? 'p-2' : 'p-3 sm:p-6'} h-full flex flex-col`} style={{ border: '1px solid #f8fafc' }}>
+                <div className={`flex items-center justify-between ${isApp ? 'mb-1 pb-1' : 'mb-2 pb-2 sm:mb-6 sm:pb-4'} border-b border-slate-200 shrink-0`} style={{ borderBottom: '1px solid #e2e8f0' }}>
                   <div className="flex-1 flex items-center overflow-hidden">
                     {selectedRoute === 'all' ? (
-                      <h3 className={`${isApp ? 'text-sm' : 'text-base lg:text-xl'} font-bold text-slate-800 flex items-center gap-2`}>
-                        <MapPin className={`${isApp ? 'w-5 h-5' : 'w-6 h-6'} text-blue-600`} />
+                      <h3 className={`${isApp ? 'text-sm' : 'text-base lg:text-xl'} font-bold text-slate-800 flex items-center gap-2`} style={{ color: '#1e293b' }}>
+                        <MapPin className={`${isApp ? 'w-5 h-5' : 'w-6 h-6'} text-blue-600`} style={{ color: '#2563eb' }} />
                         {t('all_routes_map')}
                       </h3>
                     ) : (
@@ -394,16 +393,16 @@ export default function SchematicMap() {
                             <>
                               <div
                                 className={`${isApp ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs'} rounded-full flex items-center justify-center text-white font-bold shadow-sm flex-shrink-0`}
-                                style={{ backgroundColor: r.route_color }}
+                                style={{ backgroundColor: r.route_color, color: '#ffffff' }}
                               >
                                 {r.route_number}
                               </div>
-                              <h3 className={`${isApp ? 'text-sm' : 'text-base lg:text-xl'} font-bold text-slate-800 truncate`}>
+                              <h3 className={`${isApp ? 'text-sm' : 'text-base lg:text-xl'} font-bold text-slate-800 truncate`} style={{ color: '#1e293b' }}>
                                 {r.route_name}
                               </h3>
                             </>
                           ) : (
-                            <h3 className="text-base lg:text-xl font-bold text-slate-800">{t('route_info')}</h3>
+                            <h3 className="text-base lg:text-xl font-bold text-slate-800" style={{ color: '#1e293b' }}>{t('route_info')}</h3>
                           );
                         })()}
                       </div>
@@ -415,6 +414,7 @@ export default function SchematicMap() {
                       <button
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
                         className={`text-slate-600 hover:text-slate-900 active:bg-slate-100 rounded-full transition-colors ${isApp ? 'p-1 -mr-1' : 'p-2 -mr-2'}`}
+                        style={{ color: '#475569' }}
                       >
                         <MoreVertical size={isApp ? 20 : 24} />
                       </button>
@@ -476,7 +476,7 @@ export default function SchematicMap() {
 
                 {/* Google Maps Route Display */}
                 <div className="relative flex-1 flex flex-col lg:h-full">
-                  <div className="relative flex-1 h-full min-h-[200px] mb-0 sm:mb-6 rounded-xl overflow-hidden shadow-inner border border-slate-100">
+                  <div className="relative flex-1 h-full min-h-[200px] mb-0 sm:mb-6 rounded-xl overflow-hidden shadow-inner border border-slate-100" style={{ border: '1px solid #e2e8f0' }}>
                     {/* Floating Report Button */}
                     <button
                       onClick={() => {
@@ -484,6 +484,7 @@ export default function SchematicMap() {
                       }}
                       className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-10 ${isApp ? 'h-7 px-3' : 'h-9 px-4'} bg-orange-400 rounded-full flex items-center justify-center gap-2 text-white shadow-lg hover:bg-orange-500 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2`}
                       title={t('report_issue_btn') || '잘못된 정보 신고'}
+                      style={{ backgroundColor: '#fb923c', color: '#ffffff', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}
                     >
                       <AlertTriangle size={isApp ? 12 : 16} />
                       <span className={`${isApp ? 'text-[10px]' : 'text-xs'} font-bold whitespace-nowrap`}>{t('report_issue_btn') || '잘못된 정보 신고'}</span>
